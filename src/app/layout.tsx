@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
-import { Kanit, Montserrat } from "next/font/google";
+import { Montserrat } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
 const font = Montserrat({
   variable: "--font",
   subsets: ["latin"],
+});
+
+const myFont = localFont({
+  src: "./Milker.otf",
+  weight: "800",
 });
 
 export const metadata: Metadata = {
@@ -18,10 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${font.variable} ${font.variable} h-full antialiased`}
-    >
+    <html lang="en" className={`${myFont.className} h-full antialiased`}>
       <body>{children}</body>
     </html>
   );

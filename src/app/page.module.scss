@@ -1,10 +1,18 @@
-.titleCtn {
-	display: flex;
-	//gap: 2px;
+.bg {
+	width: 100vw;
+	height: 100vh;
+
+	padding: 64px;
+
+	background-color: #B79F92;
 }
 
-.title {
-	font-weight: 800;
-	font-size: 64px;
-	color: #653a1b;
+.pageTitle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24px;
+
+	width: 100%;
+	height: 100%;
 }
