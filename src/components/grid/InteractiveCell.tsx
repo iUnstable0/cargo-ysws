@@ -37,6 +37,7 @@ export function InteractiveCell({
   onClick: () => void;
 }) {
   const cubeGroupRef = useRef<THREE.Group>(null);
+  const cubeMeshRef = useRef<THREE.Mesh>(null);
   const holeRef = useRef<THREE.Group>(null);
   const htmlRef = useRef<HTMLSpanElement>(null);
   const hovered = useRef(false);
@@ -158,6 +159,11 @@ export function InteractiveCell({
       }
     }
 
+    // Shadow only when cube is popped out
+    if (cubeMeshRef.current) {
+      cubeMeshRef.current.castShadow = hoverT.current > 0.01 || isActive;
+    }
+
     // Label visibility
     if (htmlRef.current) {
       const show = !isActive || p < 0.05;
@@ -170,8 +176,8 @@ export function InteractiveCell({
       {/* Moving cube + label */}
       <group ref={cubeGroupRef} position={[cell.centerX, cell.centerY, REST_Z]}>
         <mesh
+          ref={cubeMeshRef}
           material={cubeMaterials}
-          castShadow
           onPointerEnter={() => {
             if (!isActive) {
               hovered.current = true;
@@ -198,7 +204,6 @@ export function InteractiveCell({
         <Html
           position={[0, 0, CUBE_HALF + 0.08]}
           center
-          distanceFactor={22}
           zIndexRange={[5, 0]}
           style={{ pointerEvents: "none" }}
         >

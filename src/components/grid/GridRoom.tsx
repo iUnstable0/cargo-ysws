@@ -1,6 +1,6 @@
 "use client";
 
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import { useMemo, useRef } from "react";
@@ -76,6 +76,10 @@ export function GridRoom({
 
   const isAnimated = !!opacityRef;
 
+  // Scale grid lineWidth proportionally with viewport height (tuned at 800px).
+  const canvasSize = useThree((state) => state.size);
+  const gridLineWidth = Math.max(0.5, (canvasSize.height / 800) * 1.2);
+
   return (
     <group>
       {/* Room box */}
@@ -109,7 +113,7 @@ export function GridRoom({
             key={`bg-${i}`}
             points={[line.start, line.end]}
             color={GRID_COLOR}
-            lineWidth={1.2}
+            lineWidth={gridLineWidth}
             transparent
             opacity={isAnimated ? 0 : line.opacity}
           />
@@ -120,7 +124,7 @@ export function GridRoom({
             points={scene.otherWallsGrid}
             segments
             color={GRID_COLOR}
-            lineWidth={1.2}
+            lineWidth={gridLineWidth}
             transparent
             opacity={isAnimated ? 0 : 0.45}
           />
