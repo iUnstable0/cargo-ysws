@@ -23,7 +23,7 @@ import { CameraController } from "./CameraController";
 import { ParallaxGroup } from "./ParallaxGroup";
 import { GridRoom } from "./GridRoom";
 import { InteractiveCell } from "./InteractiveCell";
-import { BackButton } from "./BackButton";
+import Logo from "@/components/logo";
 
 const HIDDEN_RUNNERS: Record<string, number> = {
   back: 6,
@@ -124,7 +124,7 @@ export function Room({
 
       {/* Hidden layer — gracefully detached permanently powered parallax */}
       <ParallaxGroup
-        progressRef={{ current: 1 } as any}
+        progressRef={{ current: 0.15 } as any}
         cellHoveredRef={cellHoveredRef}
       >
         {activeCell && activeCellDef && (
@@ -137,13 +137,7 @@ export function Room({
             centerZ={hiddenCenterZ}
             seed={HIDDEN_SCENE_SEED}
             runnersPerWall={HIDDEN_RUNNERS}
-          >
-            <BackButton
-              cellId={activeCell}
-              onBack={handleBack}
-              opacityRef={contentOpacityRef}
-            />
-          </GridRoom>
+          />
         )}
       </ParallaxGroup>
     </>

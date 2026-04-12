@@ -9,6 +9,7 @@ import {
   SINK_DEPTH,
   PHASE_SINK_END,
   INTERACTIVE_CELLS,
+  HIDDEN_ROOM_D,
 } from "./constants";
 import { easeInOutCubic, phaseProgress } from "./utils";
 
@@ -44,7 +45,7 @@ export function CameraController({
       through: new THREE.Vector3(
         cell.centerX,
         cell.centerY,
-        BACK_WALL_Z - SINK_DEPTH - 6,
+        BACK_WALL_Z - SINK_DEPTH - 4 - HIDDEN_ROOM_D + (ROOM_D - 1),
       ),
       throughLook: new THREE.Vector3(
         cell.centerX,

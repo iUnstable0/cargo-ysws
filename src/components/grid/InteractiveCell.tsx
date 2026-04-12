@@ -14,15 +14,15 @@ import {
   LIP_DEPTH,
   PHASE_SINK_END,
   ROOM_COLOR,
+  GRID_COLOR,
 } from "./constants";
 import type { CellDef } from "./constants";
 import { easeInOutCubic, phaseProgress } from "./utils";
 import styles from "./grid.module.scss";
 
 const CELL_HALF = CELL_SIZE / 2;
-// Push cube 0.02 forward from the wall to avoid z-fighting between back face and tunnel,
-// while remaining strictly behind the global grid lines (which sit at +0.05) to eliminate edge collision.
-const REST_Z = BACK_WALL_Z - CUBE_HALF + 0.02;
+// Flushed perfectly to BACK_WALL_Z to permanently remove exposed 3D geometry edges that incorrectly intercept directional lighting during parallax offset viewing.
+const REST_Z = BACK_WALL_Z - CUBE_HALF;
 
 export function InteractiveCell({
   cell,
@@ -161,7 +161,7 @@ export function InteractiveCell({
       const mat = edgesRef.current.material as THREE.LineBasicMaterial;
       const opacity = isActive ? Math.max(0, 1 - p * 3) : 1;
       mat.transparent = true;
-      mat.opacity = hoverT.current * 0.8 * opacity;
+      mat.opacity = hoverT.current * 0.45 * opacity;
     }
 
     // Label visibility fade
@@ -203,7 +203,7 @@ export function InteractiveCell({
         >
           <boxGeometry args={[CELL_SIZE, CELL_SIZE, CUBE_DEPTH]} />
           {/* Subtle gold/amber animated edge on hover */}
-          <Edges ref={edgesRef} color="#ffdeba" transparent={true} />
+          <Edges ref={edgesRef} color={GRID_COLOR} transparent={true} />
         </mesh>
 
         {/* Label — pointer-events: none so hover stays on the 3D mesh */}

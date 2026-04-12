@@ -1,6 +1,7 @@
 "use client";
 
 import { Canvas } from "@react-three/fiber";
+import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { ROOM_W, ROOM_H, ROOM_D, ROOM_COLOR } from "./constants";
 import { Room } from "./Room";
 
@@ -48,6 +49,14 @@ export default function Scene({
       />
 
       <Room activeCell={activeCell} onCellChange={onCellChange} />
+
+      <EffectComposer disableNormalPass>
+        <Bloom
+          luminanceThreshold={1.2}
+          mipmapBlur
+          intensity={1.5}
+        />
+      </EffectComposer>
     </Canvas>
   );
 }
