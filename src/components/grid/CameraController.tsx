@@ -1,17 +1,32 @@
 "use client";
 
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMemo, useRef } from "react";
 import {
   ROOM_D,
   BACK_WALL_Z,
   SINK_DEPTH,
-  PHASE_SINK_END,
   INTERACTIVE_CELLS,
   HIDDEN_ROOM_D,
 } from "./constants";
-import { easeInOutCubic, phaseProgress } from "./utils";
+import { easeInOutCubic } from "./utils";
+
+const CAMERA_RETURN_DAMP = 10;
+const LOOK_RETURN_DAMP = 12;
+const FOV_DAMP = 12;
+const FOV_EPSILON = 0.01;
+
+function dampVector3(
+  current: THREE.Vector3,
+  target: THREE.Vector3,
+  lambda: number,
+  delta: number,
+) {
+  current.x = THREE.MathUtils.damp(current.x, target.x, lambda, delta);
+  current.y = THREE.MathUtils.damp(current.y, target.y, lambda, delta);
+  current.z = THREE.MathUtils.damp(current.z, target.z, lambda, delta);
+}
 
 export function CameraController({
   activeCell,
@@ -20,6 +35,8 @@ export function CameraController({
   activeCell: string | null;
   progressRef: React.RefObject<number>;
 }) {
+  const { size } = useThree();
+
   const homePos = useMemo(() => new THREE.Vector3(0, 0, ROOM_D / 2 - 1), []);
   const homeLookAt = useMemo(() => new THREE.Vector3(0, 0, 0), []);
   const currentLookAt = useRef(new THREE.Vector3(0, 0, 0));
@@ -71,7 +88,7 @@ export function CameraController({
     };
   }, [targets, homePos, homeLookAt]);
 
-  useFrame(({ camera }) => {
+  useFrame(({ camera }, delta) => {
     const p = progressRef.current ?? 0;
 
     if (activeCell && targets && curves && p > 0) {
@@ -82,11 +99,34 @@ export function CameraController({
       camera.position.copy(_pos.current);
       currentLookAt.current.copy(_look.current);
     } else {
-      camera.position.lerp(homePos, 0.08);
-      currentLookAt.current.lerp(homeLookAt, 0.08);
+      dampVector3(camera.position, homePos, CAMERA_RETURN_DAMP, delta);
+      dampVector3(currentLookAt.current, homeLookAt, LOOK_RETURN_DAMP, delta);
     }
 
     camera.lookAt(currentLookAt.current);
+
+    if (camera instanceof THREE.PerspectiveCamera) {
+      const aspect = size.width / size.height;
+      const baseFov = 55;
+      let targetFov = baseFov;
+      if (aspect < 1) {
+        // Adjust FOV to maintain horizontal framed content
+        const baseTan = Math.tan(THREE.MathUtils.degToRad(baseFov / 2));
+        targetFov = THREE.MathUtils.radToDeg(2 * Math.atan(baseTan / aspect));
+        // Clamp to avoid extreme distortion
+        targetFov = Math.max(55, Math.min(100, targetFov));
+      }
+      const nextFov = THREE.MathUtils.damp(
+        camera.fov,
+        targetFov,
+        FOV_DAMP,
+        delta,
+      );
+      if (Math.abs(nextFov - camera.fov) > FOV_EPSILON) {
+        camera.fov = nextFov;
+        camera.updateProjectionMatrix();
+      }
+    }
   });
 
   return null;

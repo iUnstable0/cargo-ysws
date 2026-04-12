@@ -27,11 +27,7 @@ export function phaseProgress(p: number, start: number, end: number): number {
 }
 
 // --- Grid generation helpers ---
-export function wallPoint(
-  wall: WallDef,
-  u: number,
-  v: number,
-): THREE.Vector3 {
+export function wallPoint(wall: WallDef, u: number, v: number): THREE.Vector3 {
   return wall.origin
     .clone()
     .addScaledVector(wall.uDir, u)
@@ -47,13 +43,32 @@ function totalLineDistance(points: THREE.Vector3[]): number {
   return sum;
 }
 
+function getSymmetricGridPoints(length: number, step: number): number[] {
+  const points: number[] = [];
+  const center = length / 2;
+  // Right from center
+  for (let k = 0; ; k++) {
+    const pt = center + (k + 0.5) * step;
+    if (pt >= length) break;
+    points.push(pt);
+  }
+  // Left from center
+  for (let k = 0; ; k++) {
+    const pt = center - (k + 0.5) * step;
+    if (pt <= 0) break;
+    points.push(pt);
+  }
+  return points;
+}
+
 export function generateBackWallGrid(wall: WallDef): GridLine[] {
   const lines: GridLine[] = [];
   const centerU = wall.uLen / 2;
   const centerV = wall.vLen / 2;
   const maxDist = Math.max(centerU, centerV);
 
-  for (let v = GRID_STEP; v < wall.vLen; v += GRID_STEP) {
+  const vPoints = getSymmetricGridPoints(wall.vLen, GRID_STEP);
+  for (const v of vPoints) {
     const perpDist = Math.abs(v - centerV);
     const norm = Math.min(perpDist / maxDist, 1);
     lines.push({
@@ -63,7 +78,8 @@ export function generateBackWallGrid(wall: WallDef): GridLine[] {
     });
   }
 
-  for (let u = GRID_STEP; u < wall.uLen; u += GRID_STEP) {
+  const uPoints = getSymmetricGridPoints(wall.uLen, GRID_STEP);
+  for (const u of uPoints) {
     const perpDist = Math.abs(u - centerU);
     const norm = Math.min(perpDist / maxDist, 1);
     lines.push({
@@ -79,11 +95,14 @@ export function generateBackWallGrid(wall: WallDef): GridLine[] {
 export function generateOtherWallsGrid(walls: WallDef[]): THREE.Vector3[] {
   const points: THREE.Vector3[] = [];
   for (const wall of walls) {
-    for (let v = GRID_STEP; v < wall.vLen; v += GRID_STEP) {
+    const vPoints = getSymmetricGridPoints(wall.vLen, GRID_STEP);
+    for (const v of vPoints) {
       points.push(wallPoint(wall, 0, v));
       points.push(wallPoint(wall, wall.uLen, v));
     }
-    for (let u = GRID_STEP; u < wall.uLen; u += GRID_STEP) {
+
+    const uPoints = getSymmetricGridPoints(wall.uLen, GRID_STEP);
+    for (const u of uPoints) {
       points.push(wallPoint(wall, u, 0));
       points.push(wallPoint(wall, u, wall.vLen));
     }
@@ -103,11 +122,20 @@ export function generateRunnerPath(
   wall: WallDef,
   rng: () => number,
 ): RunnerData | null {
-  const uCells = Math.floor(wall.uLen / GRID_STEP);
-  const vCells = Math.floor(wall.vLen / GRID_STEP);
+  const uPoints = getSymmetricGridPoints(wall.uLen, GRID_STEP).sort(
+    (a, b) => a - b,
+  );
+  const vPoints = getSymmetricGridPoints(wall.vLen, GRID_STEP).sort(
+    (a, b) => a - b,
+  );
 
-  let gu = 1 + Math.floor(rng() * Math.max(1, uCells - 1));
-  let gv = 1 + Math.floor(rng() * Math.max(1, vCells - 1));
+  const uCells = uPoints.length;
+  const vCells = vPoints.length;
+
+  if (uCells < 2 || vCells < 2) return null;
+
+  let gu = Math.floor(rng() * uCells);
+  let gv = Math.floor(rng() * vCells);
 
   let dirIdx = Math.floor(rng() * 4);
 
@@ -121,7 +149,7 @@ export function generateRunnerPath(
     for (let s = 0; s < steps; s++) {
       const nu = gu + du;
       const nv = gv + dv;
-      if (nu < 0 || nu > uCells || nv < 0 || nv > vCells) break;
+      if (nu < 0 || nu >= uCells || nv < 0 || nv >= vCells) break;
       gu = nu;
       gv = nv;
       gridPath.push([gu, gv]);
@@ -142,8 +170,8 @@ export function generateRunnerPath(
 
   if (deduped.length < 4) return null;
 
-  const points = deduped.map(([u, v]) =>
-    wallPoint(wall, u * GRID_STEP, v * GRID_STEP),
+  const points = deduped.map(([uIdx, vIdx]) =>
+    wallPoint(wall, uPoints[uIdx], vPoints[vIdx]),
   );
   const totalLen = totalLineDistance(points);
   if (totalLen < 8) return null;
@@ -202,7 +230,11 @@ export function buildWalls(
   return [
     {
       id: "back",
-      origin: new THREE.Vector3(cx - width / 2, cy - height / 2, cz - depth / 2),
+      origin: new THREE.Vector3(
+        cx - width / 2,
+        cy - height / 2,
+        cz - depth / 2,
+      ),
       uDir: new THREE.Vector3(1, 0, 0),
       vDir: new THREE.Vector3(0, 1, 0),
       uLen: width,
@@ -211,7 +243,11 @@ export function buildWalls(
     },
     {
       id: "left",
-      origin: new THREE.Vector3(cx - width / 2, cy - height / 2, cz + depth / 2),
+      origin: new THREE.Vector3(
+        cx - width / 2,
+        cy - height / 2,
+        cz + depth / 2,
+      ),
       uDir: new THREE.Vector3(0, 0, -1),
       vDir: new THREE.Vector3(0, 1, 0),
       uLen: depth,
@@ -220,7 +256,11 @@ export function buildWalls(
     },
     {
       id: "right",
-      origin: new THREE.Vector3(cx + width / 2, cy - height / 2, cz - depth / 2),
+      origin: new THREE.Vector3(
+        cx + width / 2,
+        cy - height / 2,
+        cz - depth / 2,
+      ),
       uDir: new THREE.Vector3(0, 0, 1),
       vDir: new THREE.Vector3(0, 1, 0),
       uLen: depth,
@@ -229,7 +269,11 @@ export function buildWalls(
     },
     {
       id: "top",
-      origin: new THREE.Vector3(cx - width / 2, cy + height / 2, cz + depth / 2),
+      origin: new THREE.Vector3(
+        cx - width / 2,
+        cy + height / 2,
+        cz + depth / 2,
+      ),
       uDir: new THREE.Vector3(1, 0, 0),
       vDir: new THREE.Vector3(0, 0, -1),
       uLen: width,
@@ -238,7 +282,11 @@ export function buildWalls(
     },
     {
       id: "bottom",
-      origin: new THREE.Vector3(cx - width / 2, cy - height / 2, cz - depth / 2),
+      origin: new THREE.Vector3(
+        cx - width / 2,
+        cy - height / 2,
+        cz - depth / 2,
+      ),
       uDir: new THREE.Vector3(1, 0, 0),
       vDir: new THREE.Vector3(0, 0, 1),
       uLen: width,

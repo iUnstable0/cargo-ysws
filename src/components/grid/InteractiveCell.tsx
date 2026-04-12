@@ -12,7 +12,6 @@ import {
   CUBE_HALF,
   HOVER_POP,
   SINK_DEPTH,
-  LIP_DEPTH,
   PHASE_SINK_END,
   ROOM_COLOR,
   GRID_COLOR,
@@ -21,11 +20,16 @@ import type { CellDef } from "./constants";
 import { easeInOutCubic, phaseProgress } from "./utils";
 import styles from "./grid.module.scss";
 
-const CELL_HALF = CELL_SIZE / 2;
 // Flushed perfectly to BACK_WALL_Z to permanently remove exposed 3D geometry edges that incorrectly intercept directional lighting during parallax offset viewing.
 const REST_Z = BACK_WALL_Z - CUBE_HALF;
-
-const baseRoom = new THREE.Color(ROOM_COLOR);
+const HOVER_DAMP_IDLE = 14;
+const HOVER_DAMP_ACTIVE = 16;
+const OPACITY_EPSILON = 0.001;
+const LABEL_EPSILON = 0.005;
+const SHADOW_POP_THRESHOLD = 0.12;
+const EDGE_HOVER_OPACITY = 0.45;
+const EDGE_DAMP = 18;
+const EDGE_SCALE = 1.002;
 
 export function InteractiveCell({
   cell,
@@ -42,11 +46,15 @@ export function InteractiveCell({
 }) {
   const cubeGroupRef = useRef<THREE.Group>(null);
   const cubeMeshRef = useRef<THREE.Mesh>(null);
-  const holeRef = useRef<THREE.Group>(null);
   const htmlRef = useRef<HTMLSpanElement>(null);
   const edgesRef = useRef<EdgesRef>(null);
   const hovered = useRef(false);
   const hoverT = useRef(0);
+  const edgeOpacity = useRef(0);
+  const lastCubeOpacity = useRef(1);
+  const lastEdgeOpacity = useRef(0);
+  const lastLabelOpacity = useRef(1);
+  const lastCastShadow = useRef<boolean | null>(null);
 
   const cubeMaterials = useMemo(
     () => [
@@ -70,7 +78,13 @@ export function InteractiveCell({
         roughness: 0.8,
         transparent: true,
       }), // -Y bottom — dark (underside)
-      new THREE.MeshBasicMaterial({ color: ROOM_COLOR, transparent: true }), // +Z front — seamlessly matches unlit wall
+      new THREE.MeshBasicMaterial({
+        color: ROOM_COLOR,
+        transparent: true,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      }), // +Z front — depth-biased to avoid coplanar edge flicker
       new THREE.MeshStandardMaterial({
         color: "#a08a7a",
         roughness: 0.8,
@@ -114,64 +128,74 @@ export function InteractiveCell({
     [],
   );
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!cubeGroupRef.current) return;
     const p = progressRef.current ?? 0;
+    const hoverTarget = !isActive && hovered.current ? 1 : 0;
+    hoverT.current = THREE.MathUtils.damp(
+      hoverT.current,
+      hoverTarget,
+      isActive ? HOVER_DAMP_ACTIVE : HOVER_DAMP_IDLE,
+      delta,
+    );
+    if (hoverTarget === 0 && hoverT.current < 0.001) hoverT.current = 0;
 
-    if (isActive) {
-      hoverT.current = THREE.MathUtils.lerp(hoverT.current, 0, 0.08);
+    const sinkP = isActive
+      ? easeInOutCubic(phaseProgress(p, 0, PHASE_SINK_END))
+      : 0;
+    cubeGroupRef.current.position.z =
+      REST_Z + hoverT.current * HOVER_POP - sinkP * SINK_DEPTH;
 
-      const sinkP = easeInOutCubic(phaseProgress(p, 0, PHASE_SINK_END));
-      cubeGroupRef.current.position.z =
-        REST_Z + hoverT.current * HOVER_POP - sinkP * SINK_DEPTH;
-
-      // Smoothly fade the physical cube transparency instead of scaling
-      const opacity = Math.max(0, 1 - sinkP * 1.5);
+    // Smoothly fade the physical cube transparency instead of scaling.
+    const cubeOpacity = isActive ? Math.max(0, 1 - sinkP * 1.5) : 1;
+    if (Math.abs(cubeOpacity - lastCubeOpacity.current) > OPACITY_EPSILON) {
+      const shouldDepthWrite = cubeOpacity > 0.01;
       cubeMaterials.forEach((mat) => {
-        const m = mat as THREE.Material;
-        m.opacity = opacity;
-        m.depthWrite = opacity > 0.01; // Safely toggle depth write so camera passes through ghost cleanly
+        mat.opacity = cubeOpacity;
+        mat.depthWrite = shouldDepthWrite; // Let camera pass through ghosted cube without depth artifacts.
       });
-
-      cubeGroupRef.current.position.y = cell.centerY;
-      cubeGroupRef.current.scale.set(1, 1, 1);
-    } else {
-      const target = hovered.current ? 1 : 0;
-      hoverT.current = THREE.MathUtils.lerp(hoverT.current, target, 0.06);
-      if (!hovered.current && hoverT.current < 0.001) hoverT.current = 0;
-
-      cubeGroupRef.current.position.z = REST_Z + hoverT.current * HOVER_POP;
-      cubeGroupRef.current.position.y = cell.centerY;
-      cubeGroupRef.current.scale.set(1, 1, 1);
-      (cubeMaterials[4] as THREE.MeshBasicMaterial).color.copy(baseRoom);
-
-      cubeMaterials.forEach((mat) => {
-        const m = mat as THREE.Material;
-        m.opacity = 1;
-        m.depthWrite = true;
-      });
+      lastCubeOpacity.current = cubeOpacity;
     }
 
     // Shadow only when cube is popped out
     if (cubeMeshRef.current) {
-      cubeMeshRef.current.castShadow = hoverT.current > 0.01 || isActive;
+      const shouldCastShadow = hoverT.current > SHADOW_POP_THRESHOLD || isActive;
+      if (lastCastShadow.current !== shouldCastShadow) {
+        cubeMeshRef.current.castShadow = shouldCastShadow;
+        lastCastShadow.current = shouldCastShadow;
+      }
     }
 
-    // Edges glowing outline on hover (also fades out proportionally to sink)
     if (edgesRef.current) {
-      const mat = edgesRef.current.material;
-      const opacity = isActive ? Math.max(0, 1 - p * 3) : 1;
-      mat.transparent = true;
-      mat.opacity = hoverT.current * 0.45 * opacity;
+      const targetEdgeOpacity = !isActive && hovered.current ? EDGE_HOVER_OPACITY : 0;
+      edgeOpacity.current = THREE.MathUtils.damp(
+        edgeOpacity.current,
+        targetEdgeOpacity,
+        EDGE_DAMP,
+        delta,
+      );
+      if (targetEdgeOpacity === 0 && edgeOpacity.current < 0.001) {
+        edgeOpacity.current = 0;
+      }
+
+      if (Math.abs(edgeOpacity.current - lastEdgeOpacity.current) > OPACITY_EPSILON) {
+        const mat = edgesRef.current.material;
+        mat.transparent = true;
+        mat.opacity = edgeOpacity.current;
+        mat.depthWrite = false;
+        mat.depthTest = true;
+        lastEdgeOpacity.current = edgeOpacity.current;
+      }
     }
 
     // Label visibility fade
     if (htmlRef.current) {
-      if (!isActive) {
-        htmlRef.current.style.opacity = "1";
-      } else {
-        const op = Math.max(0, 1 - (p / PHASE_SINK_END) * 1.5);
-        htmlRef.current.style.opacity = op.toString();
+      const labelOpacity = !isActive
+        ? 1
+        : Math.max(0, 1 - (p / PHASE_SINK_END) * 1.5);
+      if (Math.abs(labelOpacity - lastLabelOpacity.current) > LABEL_EPSILON) {
+        htmlRef.current.style.opacity = labelOpacity.toString();
+        lastLabelOpacity.current = labelOpacity;
       }
     }
   });
@@ -203,8 +227,14 @@ export function InteractiveCell({
           }}
         >
           <boxGeometry args={[CELL_SIZE, CELL_SIZE, CUBE_DEPTH]} />
-          {/* Subtle gold/amber animated edge on hover */}
-          <Edges ref={edgesRef} color={GRID_COLOR} transparent={true} />
+          <Edges
+            ref={edgesRef}
+            color={GRID_COLOR}
+            transparent
+            opacity={0}
+            scale={EDGE_SCALE}
+            renderOrder={3}
+          />
         </mesh>
 
         {/* Label — pointer-events: none so hover stays on the 3D mesh */}

@@ -36,7 +36,8 @@
 }
 
 .detailContent {
-	width: 400px;
+	width: 100%;
+	max-width: 400px;
 	padding: 24px;
 	color: #3a2418;
 	font-family: var(--font), sans-serif;

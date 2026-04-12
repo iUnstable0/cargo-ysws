@@ -123,6 +123,6 @@ export const RUNNERS_PER_WALL: Record<string, number> = {
 
 // --- Interactive cell definitions ---
 export const INTERACTIVE_CELLS: CellDef[] = [
-  { id: "readmore", label: "Read More", centerX: -3.5, centerY: -3.5 },
-  { id: "join", label: "Join", centerX: 2.5, centerY: -3.5 },
+  { id: "readmore", label: "Read More", centerX: -3.0, centerY: -3.0 },
+  { id: "join", label: "Join", centerX: 3.0, centerY: -3.0 },
 ];

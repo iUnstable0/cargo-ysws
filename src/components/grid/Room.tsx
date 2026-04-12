@@ -1,7 +1,6 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 import { useRef, useCallback } from "react";
 import {
   ROOM_W,
@@ -23,7 +22,6 @@ import { CameraController } from "./CameraController";
 import { ParallaxGroup } from "./ParallaxGroup";
 import { GridRoom } from "./GridRoom";
 import { InteractiveCell } from "./InteractiveCell";
-import Logo from "@/components/logo";
 
 const HIDDEN_RUNNERS: Record<string, number> = {
   back: 6,
@@ -32,6 +30,9 @@ const HIDDEN_RUNNERS: Record<string, number> = {
   top: 3,
   bottom: 3,
 };
+
+const ENTER_PROGRESS_SPEED = 0.9;
+const EXIT_PROGRESS_SPEED = 1.2;
 
 export function Room({
   activeCell,
@@ -47,13 +48,20 @@ export function Room({
   const cellHoveredRef = useRef(false);
   const contentOpacityRef = useRef(0);
   const cellProgressRef = useRef(0);
+  const hiddenParallaxRef = useRef(0.15);
 
   useFrame((_, delta) => {
     if (directionRef.current === "in") {
-      progressRef.current = Math.min(1, progressRef.current + delta * 0.55);
+      progressRef.current = Math.min(
+        1,
+        progressRef.current + delta * ENTER_PROGRESS_SPEED,
+      );
       if (progressRef.current >= 1) directionRef.current = null;
     } else if (directionRef.current === "out") {
-      progressRef.current = Math.max(0, progressRef.current - delta * 0.8);
+      progressRef.current = Math.max(
+        0,
+        progressRef.current - delta * EXIT_PROGRESS_SPEED,
+      );
       if (progressRef.current <= 0.001) {
         progressRef.current = 0;
         directionRef.current = null;
@@ -74,10 +82,6 @@ export function Room({
     },
     [onCellChange],
   );
-
-  const handleBack = useCallback(() => {
-    directionRef.current = "out";
-  }, []);
 
   const activeCellDef = activeCell
     ? INTERACTIVE_CELLS.find((c) => c.id === activeCell)
@@ -124,7 +128,7 @@ export function Room({
 
       {/* Hidden layer — gracefully detached permanently powered parallax */}
       <ParallaxGroup
-        progressRef={{ current: 0.15 } as any}
+        progressRef={hiddenParallaxRef}
         cellHoveredRef={cellHoveredRef}
       >
         {activeCell && activeCellDef && (
