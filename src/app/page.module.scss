@@ -1,18 +1,56 @@
 .bg {
+	position: relative;
+
 	width: 100vw;
 	height: 100vh;
 
 	padding: 64px;
 
 	background-color: #B79F92;
+	overflow: hidden;
 }
 
-.pageTitle {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 24px;
+.canvasContainer {
+	position: absolute;
+	top: 0;
+	left: 0;
 
 	width: 100%;
 	height: 100%;
+
+	z-index: 0;
+
+	&::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		box-shadow: inset 0 0 180px 60px rgba(0, 0, 0, 0.35);
+		pointer-events: none;
+		z-index: 1;
+	}
+}
+
+.pageTitle {
+	position: relative;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	padding: 24px;
+	font-size: clamp(80px, 10vw, 200px);
+
+	width: 100%;
+	height: 100%;
+
+	z-index: 2;
+
+	pointer-events: none;
+}
+
+.pageTitle > * {
+	pointer-events: auto;
 }

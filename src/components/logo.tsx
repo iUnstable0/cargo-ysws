@@ -7,23 +7,21 @@ import { motion } from "motion/react";
 
 const MotionImage = motion.create(Image);
 
-export default function Logo({ size }: { size: number }) {
+export default function Logo() {
   return (
-    <div
-      className={styles.titleCtn}
-      style={{
-        fontSize: `${size - 4}px`,
-      }}
-    >
+    <div className={styles.titleCtn}>
       <div className={styles.title}>CARG</div>
 
       <MotionImage
         className={styles.titleIcon}
         src={"logo.svg"}
-        width={size}
-        height={size}
+        width={200}
+        height={200}
         alt={"Logo"}
         whileHover={{ rotate: 180 }}
+        whileTap={{
+          scale: 1.05,
+        }}
         transition={{
           type: "spring", // Required to enable physics
           stiffness: 180, // How "tight" or strong the spring is (higher = faster snap)
