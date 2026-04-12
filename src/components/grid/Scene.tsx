@@ -50,7 +50,7 @@ export default function Scene({
 
       <Room activeCell={activeCell} onCellChange={onCellChange} />
 
-      <EffectComposer disableNormalPass>
+      <EffectComposer>
         <Bloom
           luminanceThreshold={1.2}
           mipmapBlur

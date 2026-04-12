@@ -2,6 +2,7 @@
 
 import { useFrame } from "@react-three/fiber";
 import { Html, Edges } from "@react-three/drei";
+import type { EdgesRef } from "@react-three/drei";
 import * as THREE from "three";
 import { useMemo, useRef } from "react";
 import {
@@ -43,7 +44,7 @@ export function InteractiveCell({
   const cubeMeshRef = useRef<THREE.Mesh>(null);
   const holeRef = useRef<THREE.Group>(null);
   const htmlRef = useRef<HTMLSpanElement>(null);
-  const edgesRef = useRef<THREE.LineSegments>(null);
+  const edgesRef = useRef<EdgesRef>(null);
   const hovered = useRef(false);
   const hoverT = useRef(0);
 
@@ -158,7 +159,7 @@ export function InteractiveCell({
 
     // Edges glowing outline on hover (also fades out proportionally to sink)
     if (edgesRef.current) {
-      const mat = edgesRef.current.material as THREE.LineBasicMaterial;
+      const mat = edgesRef.current.material;
       const opacity = isActive ? Math.max(0, 1 - p * 3) : 1;
       mat.transparent = true;
       mat.opacity = hoverT.current * 0.45 * opacity;
