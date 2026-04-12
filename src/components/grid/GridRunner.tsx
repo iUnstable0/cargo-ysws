@@ -21,7 +21,9 @@ export function GridRunner({ runner }: { runner: RunnerData }) {
   );
 
   useFrame((_, delta) => {
-    offset.current -= delta * runner.speed;
+    const period = runner.dashSize + runner.totalLen;
+    // Mathematically clamp the floating point dashOffset exclusively to a single geometric cycle, preventing unbounded values from slowly crushing shader precision logic into flashing artifacts.
+    offset.current = (offset.current - delta * runner.speed) % period;
     if (lineRef.current?.material) {
       lineRef.current.material.dashOffset = offset.current;
     }

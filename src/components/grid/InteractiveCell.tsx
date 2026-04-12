@@ -24,6 +24,8 @@ const CELL_HALF = CELL_SIZE / 2;
 // Flushed perfectly to BACK_WALL_Z to permanently remove exposed 3D geometry edges that incorrectly intercept directional lighting during parallax offset viewing.
 const REST_Z = BACK_WALL_Z - CUBE_HALF;
 
+const baseRoom = new THREE.Color(ROOM_COLOR);
+
 export function InteractiveCell({
   cell,
   isActive,
@@ -114,8 +116,6 @@ export function InteractiveCell({
   useFrame(() => {
     if (!cubeGroupRef.current) return;
     const p = progressRef.current ?? 0;
-    const baseRoom = new THREE.Color(ROOM_COLOR);
-    const darkSink = new THREE.Color("#605045");
 
     if (isActive) {
       hoverT.current = THREE.MathUtils.lerp(hoverT.current, 0, 0.08);
