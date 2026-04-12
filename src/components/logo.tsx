@@ -23,10 +23,10 @@ export default function Logo() {
           scale: 1.05,
         }}
         transition={{
-          type: "spring", // Required to enable physics
-          stiffness: 180, // How "tight" or strong the spring is (higher = faster snap)
-          damping: 20, // Resistance to the spring (higher = less bounce, settles faster)
-          mass: 1.5, // The weight of the object (higher = more sluggish)
+          type: "spring",
+          stiffness: 180,
+          damping: 20,
+          mass: 1.5,
         }}
       />
     </div>
