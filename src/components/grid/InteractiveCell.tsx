@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
+import { Html, Edges } from "@react-three/drei";
 import * as THREE from "three";
 import { useMemo, useRef } from "react";
 import {
@@ -20,8 +20,9 @@ import { easeInOutCubic, phaseProgress } from "./utils";
 import styles from "./grid.module.scss";
 
 const CELL_HALF = CELL_SIZE / 2;
-// Push cube 0.05 forward from the wall to avoid z-fighting between front face and wall
-const REST_Z = BACK_WALL_Z - CUBE_HALF + 0.05;
+// Push cube 0.02 forward from the wall to avoid z-fighting between back face and tunnel,
+// while remaining strictly behind the global grid lines (which sit at +0.05) to eliminate edge collision.
+const REST_Z = BACK_WALL_Z - CUBE_HALF + 0.02;
 
 export function InteractiveCell({
   cell,
@@ -40,86 +41,72 @@ export function InteractiveCell({
   const cubeMeshRef = useRef<THREE.Mesh>(null);
   const holeRef = useRef<THREE.Group>(null);
   const htmlRef = useRef<HTMLSpanElement>(null);
+  const edgesRef = useRef<THREE.LineSegments>(null);
   const hovered = useRef(false);
   const hoverT = useRef(0);
 
-  // MeshBasicMaterial for all faces — self-illuminating, predictable color
-  // Front face matches wall exactly; sides slightly darker for 3D definition
   const cubeMaterials = useMemo(
     () => [
-      new THREE.MeshBasicMaterial({ color: "#a69080" }), // +X right — darker
-      new THREE.MeshBasicMaterial({ color: "#9d8777" }), // -X left — darkest (shadow side)
-      new THREE.MeshBasicMaterial({ color: "#ad9787" }), // +Y top — slightly dark
-      new THREE.MeshBasicMaterial({ color: "#98826f" }), // -Y bottom — dark (underside)
-      new THREE.MeshBasicMaterial({ color: ROOM_COLOR }), // +Z front — matches wall
-      new THREE.MeshBasicMaterial({ color: "#a08a7a" }), // -Z back
+      new THREE.MeshStandardMaterial({
+        color: "#a69080",
+        roughness: 0.8,
+        transparent: true,
+      }), // +X right — darker
+      new THREE.MeshStandardMaterial({
+        color: "#9d8777",
+        roughness: 0.8,
+        transparent: true,
+      }), // -X left — darkest (shadow side)
+      new THREE.MeshStandardMaterial({
+        color: "#ad9787",
+        roughness: 0.8,
+        transparent: true,
+      }), // +Y top — slightly dark
+      new THREE.MeshStandardMaterial({
+        color: "#98826f",
+        roughness: 0.8,
+        transparent: true,
+      }), // -Y bottom — dark (underside)
+      new THREE.MeshBasicMaterial({ color: ROOM_COLOR, transparent: true }), // +Z front — seamlessly matches unlit wall
+      new THREE.MeshStandardMaterial({
+        color: "#a08a7a",
+        roughness: 0.8,
+        transparent: true,
+      }), // -Z back
     ],
     [],
   );
 
-  // Hole inner wall materials — graduated shadow effect
-  const holeLipMats = useMemo(
+  const TUNNEL_DEPTH = CUBE_DEPTH; // Slimmer wall thickness
+  const TUNNEL_SIZE = CELL_SIZE + 0.02;
+  const tunnelMats = useMemo(
     () => [
-      // Top front / back
+      new THREE.MeshStandardMaterial({
+        color: ROOM_COLOR,
+        side: THREE.BackSide,
+        roughness: 0.8,
+      }), // Right
+      new THREE.MeshStandardMaterial({
+        color: ROOM_COLOR,
+        side: THREE.BackSide,
+        roughness: 0.8,
+      }), // Left
+      new THREE.MeshStandardMaterial({
+        color: ROOM_COLOR,
+        side: THREE.BackSide,
+        roughness: 0.8,
+      }), // Top
+      new THREE.MeshStandardMaterial({
+        color: ROOM_COLOR,
+        side: THREE.BackSide,
+        roughness: 0.8,
+      }), // Bottom
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }), // Front (open hole)
       new THREE.MeshBasicMaterial({
-        color: "#7a6858",
         transparent: true,
         opacity: 0,
-        side: THREE.DoubleSide,
-        fog: false,
-      }),
-      new THREE.MeshBasicMaterial({
-        color: "#3a2818",
-        transparent: true,
-        opacity: 0,
-        side: THREE.DoubleSide,
-        fog: false,
-      }),
-      // Bottom front / back
-      new THREE.MeshBasicMaterial({
-        color: "#6a5848",
-        transparent: true,
-        opacity: 0,
-        side: THREE.DoubleSide,
-        fog: false,
-      }),
-      new THREE.MeshBasicMaterial({
-        color: "#3a2818",
-        transparent: true,
-        opacity: 0,
-        side: THREE.DoubleSide,
-        fog: false,
-      }),
-      // Left front / back
-      new THREE.MeshBasicMaterial({
-        color: "#705a48",
-        transparent: true,
-        opacity: 0,
-        side: THREE.DoubleSide,
-        fog: false,
-      }),
-      new THREE.MeshBasicMaterial({
-        color: "#3a2818",
-        transparent: true,
-        opacity: 0,
-        side: THREE.DoubleSide,
-        fog: false,
-      }),
-      // Right front / back
-      new THREE.MeshBasicMaterial({
-        color: "#806858",
-        transparent: true,
-        opacity: 0,
-        side: THREE.DoubleSide,
-        fog: false,
-      }),
-      new THREE.MeshBasicMaterial({
-        color: "#3a2818",
-        transparent: true,
-        opacity: 0,
-        side: THREE.DoubleSide,
-        fog: false,
-      }),
+        visible: false,
+      }), // Back
     ],
     [],
   );
@@ -127,6 +114,8 @@ export function InteractiveCell({
   useFrame(() => {
     if (!cubeGroupRef.current) return;
     const p = progressRef.current ?? 0;
+    const baseRoom = new THREE.Color(ROOM_COLOR);
+    const darkSink = new THREE.Color("#605045");
 
     if (isActive) {
       hoverT.current = THREE.MathUtils.lerp(hoverT.current, 0, 0.08);
@@ -135,28 +124,31 @@ export function InteractiveCell({
       cubeGroupRef.current.position.z =
         REST_Z + hoverT.current * HOVER_POP - sinkP * SINK_DEPTH;
 
-      // Hole fades in as cube sinks
-      if (holeRef.current) {
-        holeRef.current.visible = true;
-        const ho = easeInOutCubic(Math.min(1, sinkP * 1.5));
-        holeLipMats.forEach((m, i) => {
-          const isFront = i % 2 === 0;
-          m.opacity = ho * (isFront ? 0.7 : 0.95);
-        });
-      }
+      // Smoothly fade the physical cube transparency instead of scaling
+      const opacity = Math.max(0, 1 - sinkP * 1.5);
+      cubeMaterials.forEach((mat) => {
+        const m = mat as THREE.Material;
+        m.opacity = opacity;
+        m.depthWrite = opacity > 0.01; // Safely toggle depth write so camera passes through ghost cleanly
+      });
+
+      cubeGroupRef.current.position.y = cell.centerY;
+      cubeGroupRef.current.scale.set(1, 1, 1);
     } else {
       const target = hovered.current ? 1 : 0;
       hoverT.current = THREE.MathUtils.lerp(hoverT.current, target, 0.06);
       if (!hovered.current && hoverT.current < 0.001) hoverT.current = 0;
 
       cubeGroupRef.current.position.z = REST_Z + hoverT.current * HOVER_POP;
+      cubeGroupRef.current.position.y = cell.centerY;
+      cubeGroupRef.current.scale.set(1, 1, 1);
+      (cubeMaterials[4] as THREE.MeshBasicMaterial).color.copy(baseRoom);
 
-      if (holeRef.current) {
-        holeRef.current.visible = false;
-        holeLipMats.forEach((m) => {
-          m.opacity = 0;
-        });
-      }
+      cubeMaterials.forEach((mat) => {
+        const m = mat as THREE.Material;
+        m.opacity = 1;
+        m.depthWrite = true;
+      });
     }
 
     // Shadow only when cube is popped out
@@ -164,10 +156,22 @@ export function InteractiveCell({
       cubeMeshRef.current.castShadow = hoverT.current > 0.01 || isActive;
     }
 
-    // Label visibility
+    // Edges glowing outline on hover (also fades out proportionally to sink)
+    if (edgesRef.current) {
+      const mat = edgesRef.current.material as THREE.LineBasicMaterial;
+      const opacity = isActive ? Math.max(0, 1 - p * 3) : 1;
+      mat.transparent = true;
+      mat.opacity = hoverT.current * 0.8 * opacity;
+    }
+
+    // Label visibility fade
     if (htmlRef.current) {
-      const show = !isActive || p < 0.05;
-      htmlRef.current.style.opacity = show ? "1" : "0";
+      if (!isActive) {
+        htmlRef.current.style.opacity = "1";
+      } else {
+        const op = Math.max(0, 1 - (p / PHASE_SINK_END) * 1.5);
+        htmlRef.current.style.opacity = op.toString();
+      }
     }
   });
 
@@ -198,6 +202,8 @@ export function InteractiveCell({
           }}
         >
           <boxGeometry args={[CELL_SIZE, CELL_SIZE, CUBE_DEPTH]} />
+          {/* Subtle gold/amber animated edge on hover */}
+          <Edges ref={edgesRef} color="#ffdeba" transparent={true} />
         </mesh>
 
         {/* Label — pointer-events: none so hover stays on the 3D mesh */}
@@ -213,103 +219,17 @@ export function InteractiveCell({
         </Html>
       </group>
 
-      {/* Hole — fixed on wall, revealed when cube sinks */}
-      <group ref={holeRef} visible={false}>
-        {/* Top lip — front */}
+      {/* Physical tunnel behind the wall */}
+      <group>
         <mesh
           position={[
             cell.centerX,
-            cell.centerY + CELL_HALF,
-            BACK_WALL_Z + LIP_DEPTH * 0.75,
-          ]}
-          rotation={[Math.PI / 2, 0, 0]}
-          material={holeLipMats[0]}
-        >
-          <planeGeometry args={[CELL_SIZE, LIP_DEPTH / 2]} />
-        </mesh>
-        {/* Top lip — back */}
-        <mesh
-          position={[
-            cell.centerX,
-            cell.centerY + CELL_HALF,
-            BACK_WALL_Z + LIP_DEPTH * 0.25,
-          ]}
-          rotation={[Math.PI / 2, 0, 0]}
-          material={holeLipMats[1]}
-        >
-          <planeGeometry args={[CELL_SIZE, LIP_DEPTH / 2]} />
-        </mesh>
-        {/* Bottom lip — front */}
-        <mesh
-          position={[
-            cell.centerX,
-            cell.centerY - CELL_HALF,
-            BACK_WALL_Z + LIP_DEPTH * 0.75,
-          ]}
-          rotation={[Math.PI / 2, 0, 0]}
-          material={holeLipMats[2]}
-        >
-          <planeGeometry args={[CELL_SIZE, LIP_DEPTH / 2]} />
-        </mesh>
-        {/* Bottom lip — back */}
-        <mesh
-          position={[
-            cell.centerX,
-            cell.centerY - CELL_HALF,
-            BACK_WALL_Z + LIP_DEPTH * 0.25,
-          ]}
-          rotation={[Math.PI / 2, 0, 0]}
-          material={holeLipMats[3]}
-        >
-          <planeGeometry args={[CELL_SIZE, LIP_DEPTH / 2]} />
-        </mesh>
-        {/* Left lip — front */}
-        <mesh
-          position={[
-            cell.centerX - CELL_HALF,
             cell.centerY,
-            BACK_WALL_Z + LIP_DEPTH * 0.75,
+            BACK_WALL_Z - TUNNEL_DEPTH / 2,
           ]}
-          rotation={[0, Math.PI / 2, 0]}
-          material={holeLipMats[4]}
+          material={tunnelMats}
         >
-          <planeGeometry args={[LIP_DEPTH / 2, CELL_SIZE]} />
-        </mesh>
-        {/* Left lip — back */}
-        <mesh
-          position={[
-            cell.centerX - CELL_HALF,
-            cell.centerY,
-            BACK_WALL_Z + LIP_DEPTH * 0.25,
-          ]}
-          rotation={[0, Math.PI / 2, 0]}
-          material={holeLipMats[5]}
-        >
-          <planeGeometry args={[LIP_DEPTH / 2, CELL_SIZE]} />
-        </mesh>
-        {/* Right lip — front */}
-        <mesh
-          position={[
-            cell.centerX + CELL_HALF,
-            cell.centerY,
-            BACK_WALL_Z + LIP_DEPTH * 0.75,
-          ]}
-          rotation={[0, Math.PI / 2, 0]}
-          material={holeLipMats[6]}
-        >
-          <planeGeometry args={[LIP_DEPTH / 2, CELL_SIZE]} />
-        </mesh>
-        {/* Right lip — back */}
-        <mesh
-          position={[
-            cell.centerX + CELL_HALF,
-            cell.centerY,
-            BACK_WALL_Z + LIP_DEPTH * 0.25,
-          ]}
-          rotation={[0, Math.PI / 2, 0]}
-          material={holeLipMats[7]}
-        >
-          <planeGeometry args={[LIP_DEPTH / 2, CELL_SIZE]} />
+          <boxGeometry args={[TUNNEL_SIZE, TUNNEL_SIZE, TUNNEL_DEPTH]} />
         </mesh>
       </group>
     </>

@@ -15,7 +15,7 @@ export const SCENE_SEED = 0xf79a1689;
 export const BACK_WALL_Z = -ROOM_D / 2;
 
 // --- 3D cube constants ---
-export const CELL_SIZE = GRID_STEP - 0.1;
+export const CELL_SIZE = GRID_STEP;
 export const CUBE_DEPTH = CELL_SIZE; // equal to width/height for a proper square prism
 export const CUBE_HALF = CUBE_DEPTH / 2;
 export const HOVER_POP = 1.2;

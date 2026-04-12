@@ -54,19 +54,29 @@ export function CameraController({
     };
   }, [activeCell]);
 
+  const curves = useMemo(() => {
+    if (!targets) return null;
+    return {
+      posCurve: new THREE.CatmullRomCurve3(
+        [homePos, targets.approach, targets.through],
+        false,
+        "centripetal",
+      ),
+      lookCurve: new THREE.CatmullRomCurve3(
+        [homeLookAt, targets.approachLook, targets.throughLook],
+        false,
+        "centripetal",
+      ),
+    };
+  }, [targets, homePos, homeLookAt]);
+
   useFrame(({ camera }) => {
     const p = progressRef.current ?? 0;
 
-    if (activeCell && targets && p > 0) {
-      if (p <= PHASE_SINK_END) {
-        const t = easeInOutCubic(phaseProgress(p, 0, PHASE_SINK_END));
-        _pos.current.lerpVectors(homePos, targets.approach, t);
-        _look.current.lerpVectors(homeLookAt, targets.approachLook, t);
-      } else {
-        const t = easeInOutCubic(phaseProgress(p, PHASE_SINK_END, 1.0));
-        _pos.current.lerpVectors(targets.approach, targets.through, t);
-        _look.current.lerpVectors(targets.approachLook, targets.throughLook, t);
-      }
+    if (activeCell && targets && curves && p > 0) {
+      const t = easeInOutCubic(p);
+      curves.posCurve.getPoint(t, _pos.current);
+      curves.lookCurve.getPoint(t, _look.current);
 
       camera.position.copy(_pos.current);
       currentLookAt.current.copy(_look.current);

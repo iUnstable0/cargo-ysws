@@ -1,6 +1,7 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
+import { Html } from "@react-three/drei";
 import { useRef, useCallback } from "react";
 import {
   ROOM_W,
@@ -15,6 +16,7 @@ import {
   BACK_WALL_Z,
   SINK_DEPTH,
   INTERACTIVE_CELLS,
+  CELL_SIZE,
 } from "./constants";
 import { easeInOutCubic, phaseProgress } from "./utils";
 import { CameraController } from "./CameraController";
@@ -99,6 +101,12 @@ export function Room({
           seed={SCENE_SEED}
           runnersPerWall={RUNNERS_PER_WALL}
           receiveShadow
+          holes={INTERACTIVE_CELLS.map((c) => ({
+            id: c.id,
+            centerX: c.centerX,
+            centerY: c.centerY,
+            size: CELL_SIZE,
+          }))}
         >
           {/* Interactive cells */}
           {INTERACTIVE_CELLS.map((cell) => (
@@ -112,8 +120,13 @@ export function Room({
             />
           ))}
         </GridRoom>
+      </ParallaxGroup>
 
-        {/* Hidden layer — uses the same GridRoom component */}
+      {/* Hidden layer — gracefully detached permanently powered parallax */}
+      <ParallaxGroup
+        progressRef={{ current: 1 } as any}
+        cellHoveredRef={cellHoveredRef}
+      >
         {activeCell && activeCellDef && (
           <GridRoom
             width={HIDDEN_ROOM_W}
@@ -124,7 +137,6 @@ export function Room({
             centerZ={hiddenCenterZ}
             seed={HIDDEN_SCENE_SEED}
             runnersPerWall={HIDDEN_RUNNERS}
-            opacityRef={contentOpacityRef}
           >
             <BackButton
               cellId={activeCell}

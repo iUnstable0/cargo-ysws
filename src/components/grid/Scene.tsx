@@ -31,9 +31,9 @@ export default function Scene({
       {/* Ambient light — bright white so Lambert cube faces show true cream color */}
       <ambientLight intensity={1.8} color="#ffffff" />
 
-      {/* Directional light from top-right, angled behind camera for compact shadows */}
+      {/* Directional light from top-left, angled behind camera for compact shadows */}
       <directionalLight
-        position={[ROOM_W / 4, ROOM_H / 3, ROOM_D * 0.8]}
+        position={[-ROOM_W / 4, ROOM_H / 3, ROOM_D * 0.8]}
         intensity={0.35}
         color="#ffffff"
         castShadow
