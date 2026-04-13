@@ -13,6 +13,7 @@ import {
   PHASE_SINK_END,
   EDGE_HOVER_OPACITY,
   EDGE_SELECTED_OPACITY,
+  ROOM_COLOR,
 } from "./constants";
 import type { NavCell, ActionCell } from "./types";
 import { easeInOutCubic, phaseProgress } from "./utils";
@@ -62,6 +63,8 @@ export function InteractiveCell({
   const restZ = backWallZ - CUBE_HALF;
 
   const cubeGroupRef = useRef<THREE.Group>(null);
+  const fillRef = useRef<THREE.Mesh>(null);
+  const fillMatRef = useRef<THREE.MeshBasicMaterial>(null);
   const htmlRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const lastImageFilter = useRef("");
@@ -173,6 +176,15 @@ export function InteractiveCell({
     cubeOpacity.current =
       baseCubeOpacity * (1 - disabledT.current * (1 - DISABLED_OPACITY));
 
+    // Fill plane — plugs the CSG hole in the back wall so grid lines
+    // don't show through the cube sides when popped.  Fades during sink.
+    if (fillMatRef.current && fillRef.current) {
+      const fillOp = cubeOpacity.current * (sinkP > 0.01 ? Math.max(0, 1 - sinkP * 2) : 1);
+      fillMatRef.current.opacity = fillOp;
+      fillMatRef.current.transparent = fillOp < 0.999;
+      fillRef.current.visible = fillOp > 0.01;
+    }
+
     // Label size — project cell dimensions from 3D to screen pixels.
     // backWallZ is in the room's local space; add worldZOffset to get world Z
     // so the perspective divide uses the correct camera-to-wall distance.
@@ -283,7 +295,7 @@ export function InteractiveCell({
         <Html
           position={[0, 0, CUBE_HALF + 0.08]}
           center
-          zIndexRange={[1, 0]}
+          zIndexRange={[500, 0]}
           style={{ pointerEvents: "none" }}
         >
           {hasPrice ? (
@@ -320,6 +332,24 @@ export function InteractiveCell({
           )}
         </Html>
       </group>
+
+      {/* Fill plane at wall surface — occludes grid lines through the CSG hole */}
+      <mesh
+        ref={(mesh: THREE.Mesh | null) => {
+          fillRef.current = mesh;
+          if (mesh) mesh.raycast = () => {};
+        }}
+        position={[worldX, worldY, backWallZ]}
+      >
+        <planeGeometry args={[CELL_SIZE, CELL_SIZE]} />
+        <meshBasicMaterial
+          ref={fillMatRef}
+          color={ROOM_COLOR}
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
+        />
+      </mesh>
 
       {/* Physical tunnel behind the wall */}
       <CellTunnel
