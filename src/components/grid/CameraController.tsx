@@ -3,9 +3,15 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMemo, useRef } from "react";
-import { ROOM_D, BACK_WALL_Z, SINK_DEPTH } from "./constants";
+import { ROOM_D } from "./constants";
 import { easeInOutCubic } from "./utils";
 import { useNavigation } from "./navigation/context";
+import type { RoomStackEntry } from "./navigation/context";
+import type { CellDef } from "./types";
+
+// Home room's camera-to-backwall distance (used as reference for FOV scaling)
+const HOME_DIST = ROOM_D - 1; // 15
+const BASE_FOV = 55;
 
 const CAMERA_RETURN_DAMP = 10;
 const LOOK_RETURN_DAMP = 12;
@@ -25,8 +31,8 @@ function dampVector3(
 
 /** Get the center position of a doorway cell (handles widget spans). */
 function getDoorwayPos(
-  cell: import("./types").CellDef,
-): { centerX: number; centerY: number } | null {
+  cell: CellDef,
+): { centerX: number; centerY: number } {
   if (cell.kind === "widget") {
     const xs = cell.span.map((s) => s.centerX);
     const ys = cell.span.map((s) => s.centerY);
@@ -38,70 +44,109 @@ function getDoorwayPos(
   return { centerX: cell.centerX, centerY: cell.centerY };
 }
 
+/** Compute world-space homePos for a room stack entry. */
+function entryHomePos(entry: RoomStackEntry): THREE.Vector3 {
+  return new THREE.Vector3(
+    entry.worldX,
+    entry.worldY,
+    entry.worldZ + entry.page.room.depth / 2 - 1,
+  );
+}
+
+/** Compute world-space homeLookAt for a room stack entry. */
+function entryHomeLookAt(entry: RoomStackEntry): THREE.Vector3 {
+  return new THREE.Vector3(entry.worldX, entry.worldY, entry.worldZ);
+}
+
 export function CameraController() {
-  const { doorwayCell, currentPage, progressRef, depth } = useNavigation();
+  const { roomStack, directionRef, progressRef } = useNavigation();
   const { size } = useThree();
 
-  const homePos = useMemo(() => new THREE.Vector3(0, 0, ROOM_D / 2 - 1), []);
-  const homeLookAt = useMemo(() => new THREE.Vector3(0, 0, 0), []);
-  const currentLookAt = useRef(new THREE.Vector3(0, 0, 0));
+  const settledEntry = roomStack[roomStack.length - 1];
+  const parentEntry =
+    roomStack.length > 1 ? roomStack[roomStack.length - 2] : null;
 
+  // World-space homePos/homeLookAt for the settled (deepest) room
+  const homePos = useMemo(() => entryHomePos(settledEntry), [settledEntry]);
+  const homeLookAt = useMemo(
+    () => entryHomeLookAt(settledEntry),
+    [settledEntry],
+  );
+
+  const currentLookAt = useRef(new THREE.Vector3(0, 0, 0));
   const _pos = useRef(new THREE.Vector3());
   const _look = useRef(new THREE.Vector3());
 
-  const isActive = depth > 0 && doorwayCell !== null;
+  // Snap detection: when roomStack changes while direction is null (breadcrumb jump)
+  const prevStackLenRef = useRef(roomStack.length);
+  const snapNextFrame = useRef(false);
+  if (
+    directionRef.current === null &&
+    roomStack.length !== prevStackLenRef.current
+  ) {
+    snapNextFrame.current = true;
+  }
+  prevStackLenRef.current = roomStack.length;
 
-  const targets = useMemo(() => {
-    if (!doorwayCell) return null;
-    const pos = getDoorwayPos(doorwayCell);
-    if (!pos) return null;
+  // Only follow the CatmullRom curve when actively transitioning
+  const isAnimating =
+    directionRef.current !== null && roomStack.length > 1;
 
-    const childDepth = currentPage.room.depth;
-
-    return {
-      approach: new THREE.Vector3(
-        pos.centerX,
-        pos.centerY,
-        BACK_WALL_Z + 1.5,
-      ),
-      approachLook: new THREE.Vector3(
-        pos.centerX,
-        pos.centerY,
-        BACK_WALL_Z - 4,
-      ),
-      through: new THREE.Vector3(
-        pos.centerX,
-        pos.centerY,
-        BACK_WALL_Z - SINK_DEPTH - 4 - childDepth + (ROOM_D - 1),
-      ),
-      throughLook: new THREE.Vector3(
-        pos.centerX,
-        pos.centerY,
-        BACK_WALL_Z - SINK_DEPTH - 18,
-      ),
-    };
-  }, [doorwayCell, currentPage.room.depth]);
+  // Build camera curves from parent → child in world space
+  const childEntry = roomStack[roomStack.length - 1];
+  const doorwayCell = childEntry.doorwayCell;
 
   const curves = useMemo(() => {
-    if (!targets) return null;
+    if (!parentEntry || !doorwayCell) return null;
+
+    const doorPos = getDoorwayPos(doorwayCell);
+    const parentBackWallZ =
+      parentEntry.worldZ - parentEntry.page.room.depth / 2;
+
+    // All positions in world space
+    const from = entryHomePos(parentEntry);
+    const approach = new THREE.Vector3(
+      parentEntry.worldX + doorPos.centerX,
+      parentEntry.worldY + doorPos.centerY,
+      parentBackWallZ + 1.5,
+    );
+    const through = entryHomePos(childEntry);
+
+    const fromLook = entryHomeLookAt(parentEntry);
+    const approachLook = new THREE.Vector3(
+      parentEntry.worldX + doorPos.centerX,
+      parentEntry.worldY + doorPos.centerY,
+      parentBackWallZ - 4,
+    );
+    const throughLook = entryHomeLookAt(childEntry);
+
     return {
       posCurve: new THREE.CatmullRomCurve3(
-        [homePos, targets.approach, targets.through],
+        [from, approach, through],
         false,
         "centripetal",
       ),
       lookCurve: new THREE.CatmullRomCurve3(
-        [homeLookAt, targets.approachLook, targets.throughLook],
+        [fromLook, approachLook, throughLook],
         false,
         "centripetal",
       ),
     };
-  }, [targets, homePos, homeLookAt]);
+  }, [parentEntry, childEntry, doorwayCell]);
 
   useFrame(({ camera }, delta) => {
     const p = progressRef.current ?? 0;
 
-    if (isActive && targets && curves && p > 0) {
+    // Snap for breadcrumb jumps (navigateToDepth)
+    if (snapNextFrame.current) {
+      snapNextFrame.current = false;
+      camera.position.copy(homePos);
+      currentLookAt.current.copy(homeLookAt);
+      camera.lookAt(currentLookAt.current);
+      return;
+    }
+
+    if (isAnimating && curves && p > 0) {
       const t = easeInOutCubic(p);
       curves.posCurve.getPoint(t, _pos.current);
       curves.lookCurve.getPoint(t, _look.current);
@@ -109,6 +154,7 @@ export function CameraController() {
       camera.position.copy(_pos.current);
       currentLookAt.current.copy(_look.current);
     } else {
+      // Settled — damp to homePos
       dampVector3(camera.position, homePos, CAMERA_RETURN_DAMP, delta);
       dampVector3(currentLookAt.current, homeLookAt, LOOK_RETURN_DAMP, delta);
     }
@@ -117,13 +163,33 @@ export function CameraController() {
 
     if (camera instanceof THREE.PerspectiveCamera) {
       const aspect = size.width / size.height;
-      const baseFov = 55;
-      let targetFov = baseFov;
-      if (aspect < 1) {
-        const baseTan = Math.tan(THREE.MathUtils.degToRad(baseFov / 2));
-        targetFov = THREE.MathUtils.radToDeg(2 * Math.atan(baseTan / aspect));
-        targetFov = Math.max(55, Math.min(100, targetFov));
+
+      // Scale FOV so cells appear the same angular size regardless of room depth.
+      // During transitions, interpolate between parent and child FOV along the
+      // same easing curve as the camera position to avoid a spring-like zoom effect.
+      let currentDist: number;
+      if (directionRef.current !== null && parentEntry) {
+        const parentDist = parentEntry.page.room.depth - 1;
+        const childDist = childEntry.page.room.depth - 1;
+        const t = easeInOutCubic(p);
+        currentDist = parentDist + (childDist - parentDist) * t;
+      } else {
+        currentDist = settledEntry.page.room.depth - 1;
       }
+      const baseTanHalf = Math.tan(THREE.MathUtils.degToRad(BASE_FOV / 2));
+      let targetFov = THREE.MathUtils.radToDeg(
+        2 * Math.atan(baseTanHalf * HOME_DIST / currentDist),
+      );
+
+      // Narrow-viewport correction (same as before, applied on top)
+      if (aspect < 1) {
+        const adjustedTan = Math.tan(THREE.MathUtils.degToRad(targetFov / 2));
+        targetFov = THREE.MathUtils.radToDeg(
+          2 * Math.atan(adjustedTan / aspect),
+        );
+      }
+      targetFov = Math.max(BASE_FOV, Math.min(110, targetFov));
+
       const nextFov = THREE.MathUtils.damp(
         camera.fov,
         targetFov,
