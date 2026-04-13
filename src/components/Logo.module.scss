@@ -6,13 +6,13 @@
 	.title {
 		font-weight: 800;
 		color: #653a1b;
+		line-height: 1;
 	}
 
 	.titleIcon {
 		width: 0.95em;
 		height: 0.95em;
 		cursor: pointer;
-		transform: translateY(5%);
 
 		pointer-events: auto;
 	}
