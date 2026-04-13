@@ -13,6 +13,7 @@ import Logo from "@/components/Logo";
 import RobloxLogo from "@/components/RobloxLogo";
 
 import { Magnetic } from "@/components/mp/Magnetic";
+import Builderman from "@/components/builderman/Builderman";
 
 import styles from "./page.module.scss";
 
@@ -74,13 +75,13 @@ export default function Home() {
           build a{" "}
           <span className={styles.robloxStudioWrap}>
             <RobloxLogo className={styles.robloxLogo} /> Studio
-            <Image
-              src="/builderman.png"
-              alt="Builderman"
-              width={48}
-              height={48}
-              className={styles.builderman}
-            />
+            {/*<Image*/}
+            {/*  src="/builderman.png"*/}
+            {/*  alt="Builderman"*/}
+            {/*  width={48}*/}
+            {/*  height={48}*/}
+            {/*  className={styles.builderman}*/}
+            {/*/>*/}
           </span>{" "}
           plugin, get{" "}
           <a
@@ -94,6 +95,8 @@ export default function Home() {
           and more!
         </div>
       </div>
+
+      <Builderman />
     </div>
   );
 }

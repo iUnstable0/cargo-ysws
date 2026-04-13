@@ -1,0 +1,32 @@
+.container {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  z-index: 5;
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+}
+
+.imageWrapper {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+}
+
+.buildermanImage {
+  width: clamp(100px, 15vw, 180px);
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.speechBubbleWrapper {
+  position: absolute;
+  bottom: 100%;
+  right: 20px;
+  margin-bottom: 8px;
+  width: max-content;
+  max-width: min(320px, 80vw);
+}
