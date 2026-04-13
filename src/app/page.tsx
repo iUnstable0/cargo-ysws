@@ -56,7 +56,7 @@ export default function Home() {
             className={styles.backBtn}
             onClick={() => popPageRef.current?.()}
           >
-            <ArrowLeft size={24} strokeWidth={2.5} />
+            <ArrowLeft size={30} strokeWidth={2.5} />
           </button>
         </Magnetic>
       </div>

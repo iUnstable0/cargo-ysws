@@ -39,22 +39,17 @@
 
 .backButtonOverlay {
   position: absolute;
-  bottom: 48px;
-  left: 48px;
+  bottom: max(24px, 3vw);
+  left: max(24px, 3vw);
   z-index: 10;
-
-  @media (max-width: 768px) {
-    bottom: 24px;
-    left: 24px;
-  }
 }
 
 .backBtn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
+  width: max(56px, 4.5vw);
+  height: max(56px, 4.5vw);
   padding: 0;
   border: 1.5px solid rgba(58, 36, 24, 0.3);
   border-radius: 50%;
