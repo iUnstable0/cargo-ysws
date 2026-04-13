@@ -81,6 +81,8 @@ export function InteractiveCell({
   // Reusable vectors for label size projection
   const _labelV1 = useMemo(() => new THREE.Vector3(), []);
   const _labelV2 = useMemo(() => new THREE.Vector3(), []);
+  const _camDir = useMemo(() => new THREE.Vector3(), []);
+  const _cellWorld = useMemo(() => new THREE.Vector3(), []);
   const lastLabelWidth = useRef(0);
   const lastLabelHeight = useRef(0);
   const hasPrice = cell.kind === "action" && cell.price != null;
@@ -130,14 +132,28 @@ export function InteractiveCell({
     );
     if (selectedTarget === 0 && selectedT.current < 0.02) selectedT.current = 0;
 
+    // Perspective-compensate pop distance so screen-space displacement is
+    // uniform regardless of the cell's position in the FOV.
+    cubeGroupRef.current.getWorldPosition(_cellWorld);
+    camera.getWorldDirection(_camDir);
+    const dx = _cellWorld.x - camera.position.x;
+    const dy = _cellWorld.y - camera.position.y;
+    const dz = _cellWorld.z - camera.position.z;
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    const cosTheta =
+      dist > 0.001
+        ? (dx * _camDir.x + dy * _camDir.y + dz * _camDir.z) / dist
+        : 1;
+    const popScale = Math.max(0.8, cosTheta);
+
     const sinkP = isActive
       ? easeInOutCubic(phaseProgress(p, 0, PHASE_SINK_END))
       : 0;
     cubeGroupRef.current.position.z =
       restZ +
-      hoverT.current * hoverPop * (1 - selectedT.current * 0.85) +
-      selectedT.current * SELECTED_POP -
-      pressT.current * pressSink -
+      hoverT.current * hoverPop * popScale * (1 - selectedT.current * 0.85) +
+      selectedT.current * SELECTED_POP * popScale -
+      pressT.current * pressSink * popScale -
       sinkP * SINK_DEPTH;
 
     // Drive CellBody refs
