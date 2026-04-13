@@ -9,7 +9,6 @@ import { ParallaxGroup } from "./ParallaxGroup";
 import { GridRoom } from "./GridRoom";
 import { InteractiveCell } from "./InteractiveCell";
 import { WidgetMount } from "./WidgetMount";
-import { CellLoadingRunner } from "./CellLoadingRunner";
 import { useNavigation } from "./navigation/context";
 import { getPage } from "./pages";
 import type { CellDef, NavCell, ActionCell } from "./types";
@@ -74,7 +73,6 @@ export function Room() {
     completePop,
     directionRef,
     progressRef,
-    loadingCellRef,
   } = useNavigation();
 
   // Per-room parallax refs
@@ -173,21 +171,19 @@ export function Room() {
 
   const handleCellClick = useCallback(
     (cell: NavCell | ActionCell) => {
+      // Ignore clicks during transitions
+      if (directionRef.current !== null) return;
       if (cell.kind === "nav") {
         const target = getPage(cell.target);
         if (!target) return;
-        loadingCellRef.current = cell.id;
         activeCellIdRef.current = cell.id;
-        queueMicrotask(() => {
-          loadingCellRef.current = null;
-          pushPage(cell.id, cell.target);
-        });
+        pushPage(cell.id, cell.target);
       } else if (cell.kind === "action") {
         if (cell.href) window.open(cell.href, "_blank");
         if (cell.onClick) cell.onClick();
       }
     },
-    [pushPage, loadingCellRef],
+    [pushPage, directionRef],
   );
 
   // ---------------------------------------------------------------------------
@@ -209,7 +205,6 @@ export function Room() {
       : isTransitioning
         ? childContentOpacityRef
         : mainWidgetOpacityRef;
-    const cellsDisabled = isTransitioning;
 
     return (
       <group
@@ -241,16 +236,12 @@ export function Room() {
                 );
               }
               const isActive = activeCellIdRef.current === cell.id;
-              const isLoadingThis = loadingCellRef.current === cell.id;
-              const isDisabled =
-                cellsDisabled ||
-                (loadingCellRef.current !== null && !isLoadingThis);
               return (
                 <group key={cell.id}>
                   <InteractiveCell
                     cell={cell}
                     isActive={isActive}
-                    isDisabled={isDisabled}
+                    isDisabled={false}
                     progressRef={cellProgressRef}
                     cellHoveredRef={cellHoveredRef}
                     onClick={() => handleCellClick(cell)}
@@ -265,13 +256,6 @@ export function Room() {
                     selectedRef={page.selectedCellIdsRef}
                     hoverPop={page.hoverPop}
                   />
-                  {isLoadingThis && (
-                    <CellLoadingRunner
-                      centerX={cell.centerX}
-                      centerY={cell.centerY}
-                      backWallZ={backWallZ}
-                    />
-                  )}
                 </group>
               );
             })}

@@ -3,15 +3,15 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMemo, useRef } from "react";
-import { ROOM_D, ROOM_W } from "./constants";
+import { ROOM_D } from "./constants";
 import { easeInOutCubic } from "./utils";
 import { useNavigation } from "./navigation/context";
 import type { RoomStackEntry } from "./navigation/context";
 import type { CellDef } from "./types";
 
-// Camera-to-backwall distance ratio from the home room: (ROOM_D - 1) / ROOM_W
-// This keeps the same visual zoom level regardless of room size.
-const HOME_CAMERA_RATIO = (ROOM_D - 1) / ROOM_W;
+// Home room's camera-to-backwall distance (used as reference for FOV scaling)
+const HOME_DIST = ROOM_D - 1; // 15
+const BASE_FOV = 55;
 
 const CAMERA_RETURN_DAMP = 10;
 const LOOK_RETURN_DAMP = 12;
@@ -44,17 +44,12 @@ function getDoorwayPos(
   return { centerX: cell.centerX, centerY: cell.centerY };
 }
 
-/** Compute world-space homePos for a room stack entry.
- *  Camera distance from back wall scales with room width to match the home room's zoom level. */
+/** Compute world-space homePos for a room stack entry. */
 function entryHomePos(entry: RoomStackEntry): THREE.Vector3 {
-  const dist = Math.min(
-    HOME_CAMERA_RATIO * entry.page.room.width,
-    entry.page.room.depth - 1,
-  );
   return new THREE.Vector3(
     entry.worldX,
     entry.worldY,
-    entry.worldZ - entry.page.room.depth / 2 + dist,
+    entry.worldZ + entry.page.room.depth / 2 - 1,
   );
 }
 
@@ -168,13 +163,24 @@ export function CameraController() {
 
     if (camera instanceof THREE.PerspectiveCamera) {
       const aspect = size.width / size.height;
-      const baseFov = 55;
-      let targetFov = baseFov;
+
+      // Scale FOV so cells appear the same angular size regardless of room depth.
+      // Smaller rooms have shorter camera-to-backwall distance, so widen FOV to compensate.
+      const currentDist = settledEntry.page.room.depth - 1;
+      const baseTanHalf = Math.tan(THREE.MathUtils.degToRad(BASE_FOV / 2));
+      let targetFov = THREE.MathUtils.radToDeg(
+        2 * Math.atan(baseTanHalf * HOME_DIST / currentDist),
+      );
+
+      // Narrow-viewport correction (same as before, applied on top)
       if (aspect < 1) {
-        const baseTan = Math.tan(THREE.MathUtils.degToRad(baseFov / 2));
-        targetFov = THREE.MathUtils.radToDeg(2 * Math.atan(baseTan / aspect));
-        targetFov = Math.max(55, Math.min(100, targetFov));
+        const adjustedTan = Math.tan(THREE.MathUtils.degToRad(targetFov / 2));
+        targetFov = THREE.MathUtils.radToDeg(
+          2 * Math.atan(adjustedTan / aspect),
+        );
       }
+      targetFov = Math.max(BASE_FOV, Math.min(110, targetFov));
+
       const nextFov = THREE.MathUtils.damp(
         camera.fov,
         targetFov,
