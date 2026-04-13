@@ -12,6 +12,11 @@
   position: relative;
   display: flex;
   align-items: flex-end;
+  transition: transform 0.3s ease;
+
+  .container:not(.active):hover & {
+    transform: translateX(-8px) translateY(-4px);
+  }
 }
 
 .buildermanImage {
@@ -20,6 +25,16 @@
   user-select: none;
   -webkit-user-drag: none;
   pointer-events: none;
+  filter: sepia(0.35) saturate(0.8) brightness(0.9);
+  transition: filter 0.4s ease;
+
+  .container:not(.active):hover & {
+    filter: none;
+  }
+
+  .container.active & {
+    filter: none;
+  }
 }
 
 .speechBubbleWrapper {

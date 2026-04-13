@@ -12,13 +12,23 @@ export const faqPage: PageDef = {
       kind: "widget",
       id: "faq-content",
       span: [
+        { centerX: -6, centerY: 0 },
         { centerX: -3, centerY: 0 },
         { centerX: 0, centerY: 0 },
         { centerX: 3, centerY: 0 },
+        { centerX: 6, centerY: 0 },
 
+        { centerX: -6, centerY: 3 },
         { centerX: -3, centerY: 3 },
         { centerX: 0, centerY: 3 },
         { centerX: 3, centerY: 3 },
+        { centerX: 6, centerY: 3 },
+
+        { centerX: -6, centerY: -3 },
+        { centerX: -3, centerY: -3 },
+        { centerX: 0, centerY: -3 },
+        { centerX: 3, centerY: -3 },
+        { centerX: 6, centerY: -3 },
       ],
       component: FaqContent,
     },

@@ -43,7 +43,7 @@ export const readmorePage: PageDef = {
       kind: "nav",
       id: "faq",
       label: "Read the FAQs",
-      centerX: 6,
+      centerX: -6,
       centerY: -4.5,
       target: "faq",
     },

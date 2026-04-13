@@ -7,9 +7,7 @@ import styles from "./ReadMoreContent.module.scss";
 export function ReadMoreContent(_props: WidgetProps) {
   return (
     <div className={styles.container}>
-      <h2 className={styles.heading}>
-        What is <Logo /> ?
-      </h2>
+      <h2 className={styles.heading}>What is Cargo?</h2>
 
       <p className={styles.description}>
         <span className={styles.brand}>Cargo</span> is a{" "}

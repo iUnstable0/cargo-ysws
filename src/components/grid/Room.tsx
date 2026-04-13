@@ -246,6 +246,7 @@ export function Room() {
                     cellHoveredRef={cellHoveredRef}
                     onClick={() => handleCellClick(cell)}
                     backWallZ={backWallZ}
+                    worldZOffset={entry.worldZ}
                     visibilityRef={
                       isParent
                         ? undefined

@@ -178,7 +178,7 @@ export default function Builderman() {
 
   return (
     <motion.div
-      className={styles.container}
+      className={`${styles.container}${!isOut ? ` ${styles.active}` : ""}`}
       onClick={handleClick}
       animate={{ x: isOut ? "60%" : "0%" }}
       transition={{ type: "spring", stiffness: 200, damping: 25 }}

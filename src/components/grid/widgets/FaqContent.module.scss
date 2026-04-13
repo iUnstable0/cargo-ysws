@@ -8,12 +8,11 @@
   pointer-events: none;
   overflow-y: auto;
   overflow-x: hidden;
-  text-transform: none;
 }
 
 .title {
   font-family: var(--font-jbmono), monospace;
-  font-size: max(13px, 2.2vmin);
+  font-size: max(16px, 2.7vmin);
   font-weight: 800;
   color: #653a1b;
   margin: 0 0 10px;
@@ -43,7 +42,7 @@
   cursor: pointer;
   pointer-events: auto;
   font-family: var(--font-jbmono), monospace;
-  font-size: max(9px, 1.4vmin);
+  font-size: max(12px, 1.8vmin);
   font-weight: 700;
   color: #653a1b;
   text-align: left;
@@ -56,7 +55,7 @@
 
 .answer {
   font-family: var(--font-jbmono), monospace;
-  font-size: max(8px, 1.3vmin);
+  font-size: max(11px, 1.6vmin);
   font-weight: 500;
   line-height: 1.5;
   color: #3a2418;

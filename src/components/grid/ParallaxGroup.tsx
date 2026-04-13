@@ -22,8 +22,8 @@ export function ParallaxGroup({
     if (!groupRef.current) return;
     const intensity = progressRef.current ?? 1;
     const suppress = cellHoveredRef.current;
-    const targetY = suppress ? 0 : three.pointer.x * 0.04 * intensity;
-    const targetX = suppress ? 0 : -three.pointer.y * 0.03 * intensity;
+    const targetY = suppress ? 0 : three.pointer.x * 0.02 * intensity;
+    const targetX = suppress ? 0 : -three.pointer.y * 0.015 * intensity;
     groupRef.current.rotation.y = THREE.MathUtils.damp(
       groupRef.current.rotation.y,
       targetY,

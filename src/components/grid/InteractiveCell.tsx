@@ -39,6 +39,7 @@ export function InteractiveCell({
   offsetX = 0,
   offsetY = 0,
   backWallZ = BACK_WALL_Z,
+  worldZOffset = 0,
   visibilityRef,
   selectedRef,
   hoverPop = HOVER_POP,
@@ -52,6 +53,7 @@ export function InteractiveCell({
   offsetX?: number;
   offsetY?: number;
   backWallZ?: number;
+  worldZOffset?: number;
   visibilityRef?: React.RefObject<number>;
   selectedRef?: { current: Set<string> };
   hoverPop?: number;
@@ -61,6 +63,8 @@ export function InteractiveCell({
 
   const cubeGroupRef = useRef<THREE.Group>(null);
   const htmlRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const lastImageFilter = useRef("");
   const hovered = useRef(false);
   const pressed = useRef(false);
   const hoverT = useRef(0);
@@ -153,13 +157,16 @@ export function InteractiveCell({
     cubeOpacity.current =
       baseCubeOpacity * (1 - disabledT.current * (1 - DISABLED_OPACITY));
 
-    // Label size — project cell dimensions from 3D to screen pixels
+    // Label size — project cell dimensions from 3D to screen pixels.
+    // backWallZ is in the room's local space; add worldZOffset to get world Z
+    // so the perspective divide uses the correct camera-to-wall distance.
     if (htmlRef.current) {
       const halfCell = CELL_SIZE / 2;
+      const wallWorldZ = worldZOffset + backWallZ;
 
-      _labelV1.set(worldX - halfCell, worldY, backWallZ);
+      _labelV1.set(worldX - halfCell, worldY, wallWorldZ);
       _labelV1.project(camera);
-      _labelV2.set(worldX + halfCell, worldY, backWallZ);
+      _labelV2.set(worldX + halfCell, worldY, wallWorldZ);
       _labelV2.project(camera);
       const x1 = ((_labelV1.x + 1) / 2) * size.width;
       const x2 = ((_labelV2.x + 1) / 2) * size.width;
@@ -171,9 +178,9 @@ export function InteractiveCell({
       }
 
       if (hasPrice) {
-        _labelV1.set(worldX, worldY + halfCell, backWallZ);
+        _labelV1.set(worldX, worldY + halfCell, wallWorldZ);
         _labelV1.project(camera);
-        _labelV2.set(worldX, worldY - halfCell, backWallZ);
+        _labelV2.set(worldX, worldY - halfCell, wallWorldZ);
         _labelV2.project(camera);
         const y1 = ((1 - _labelV1.y) / 2) * size.height;
         const y2 = ((1 - _labelV2.y) / 2) * size.height;
@@ -198,6 +205,19 @@ export function InteractiveCell({
       if (Math.abs(labelOpacity - lastLabelOpacity.current) > LABEL_EPSILON) {
         htmlRef.current.style.opacity = labelOpacity.toString();
         lastLabelOpacity.current = labelOpacity;
+      }
+    }
+
+    // Image tint: warm sepia at rest → true color on hover/select
+    if (imageRef.current && hasPrice) {
+      const activeT = Math.max(hoverT.current, selectedT.current);
+      const sepia = (1 - activeT) * 0.8;
+      const saturate = 0.6 + activeT * 0.4;
+      const brightness = 0.82 + activeT * 0.18;
+      const filter = `sepia(${sepia.toFixed(3)}) saturate(${saturate.toFixed(3)}) brightness(${brightness.toFixed(3)})`;
+      if (filter !== lastImageFilter.current) {
+        imageRef.current.style.filter = filter;
+        lastImageFilter.current = filter;
       }
     }
   });
@@ -255,6 +275,7 @@ export function InteractiveCell({
               <div className={styles.prizeImageArea}>
                 {(cell as ActionCell).imageSrc ? (
                   <img
+                    ref={imageRef}
                     src={(cell as ActionCell).imageSrc}
                     alt={cell.label}
                     className={styles.prizeImage}

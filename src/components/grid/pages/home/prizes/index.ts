@@ -51,6 +51,7 @@ export const prizesPage: PageDef = {
       price: 20,
       centerX: 0,
       centerY: -1.5,
+      imageSrc: "/aseprite-banner.webp",
       onClick: () => prizeToggleRef.current("aseprite"),
     },
     {
@@ -60,6 +61,7 @@ export const prizesPage: PageDef = {
       price: 10,
       centerX: 3,
       centerY: -1.5,
+      imageSrc: "/roblox-gift-card.webp",
       onClick: () => prizeToggleRef.current("roblox-gift-card"),
     },
     {
@@ -69,6 +71,7 @@ export const prizesPage: PageDef = {
       price: 20,
       centerX: 6,
       centerY: -1.5,
+      imageSrc: "/roblox-figure-set.webp",
       onClick: () => prizeToggleRef.current("roblox-figures"),
     },
   ],
