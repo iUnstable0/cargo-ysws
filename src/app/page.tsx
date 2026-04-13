@@ -1,19 +1,27 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import Logo from "@/components/logo";
+import { motion } from "motion/react";
+
+import Banner from "@hackclub/banner";
+import { ArrowLeft } from "lucide-react";
+
+import Logo from "@/components/Logo";
 import RobloxLogo from "@/components/RobloxLogo";
+
+import { Magnetic } from "@/components/mp/Magnetic";
 
 import styles from "./page.module.scss";
 
-const BoxScene = dynamic(() => import("@/components/box"), {
+const BoxScene = dynamic(() => import("@/components/Box"), {
   ssr: false,
 });
 
 export default function Home() {
   const [navDepth, setNavDepth] = useState(0);
+  const popPageRef = useRef<(() => void) | null>(null);
   const handleDepthChange = useCallback((depth: number) => {
     setNavDepth(depth);
   }, []);
@@ -22,8 +30,33 @@ export default function Home() {
 
   return (
     <div className={styles.bg}>
+      <Banner
+        style={{
+          width: "max(80px, 10vw)",
+          top: "max(8px, 1.5vw)",
+        }}
+      />
+
       <div className={styles.canvasContainer}>
-        <BoxScene onDepthChange={handleDepthChange} />
+        <BoxScene onDepthChange={handleDepthChange} popPageRef={popPageRef} />
+      </div>
+
+      <div
+        className={styles.backButtonOverlay}
+        style={{
+          opacity: !isHome ? 1 : 0,
+          pointerEvents: !isHome ? "auto" : "none",
+          transition: "opacity 0.4s ease",
+        }}
+      >
+        <Magnetic intensity={0.3} range={80}>
+          <button
+            className={styles.backBtn}
+            onClick={() => popPageRef.current?.()}
+          >
+            <ArrowLeft size={24} strokeWidth={2.5} />
+          </button>
+        </Magnetic>
       </div>
 
       <div

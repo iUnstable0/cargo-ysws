@@ -1,0 +1,131 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: opacity 0.2s ease;
+
+  &:hover {
+    opacity: 0.85;
+  }
+}
+
+.selected {
+  opacity: 1;
+}
+
+.top {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
+.priceBadge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-family: var(--font-jbmono), "JetBrains Mono", monospace;
+  font-size: max(9px, 1.4vmin);
+  font-weight: 800;
+  color: #2d7a2d;
+  background: rgba(210, 190, 175, 0.85);
+  padding: 1px 5px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.label {
+  font-family: var(--font-jbmono), "JetBrains Mono", monospace;
+  font-size: max(9px, 1.4vmin);
+  font-weight: 700;
+  color: #653a1b;
+  line-height: 1.3;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+}
+
+.priceRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.dollar {
+  font-family: var(--font-jbmono), "JetBrains Mono", monospace;
+  font-size: max(11px, 1.6vmin);
+  font-weight: 700;
+  color: #653a1b;
+}
+
+.input {
+  width: 50px;
+  padding: 2px 4px;
+  border: 1px solid rgba(58, 36, 24, 0.3);
+  border-radius: 2px;
+  background: rgba(183, 159, 146, 0.4);
+  color: #3a2418;
+  font-family: var(--font-jbmono), "JetBrains Mono", monospace;
+  font-size: max(10px, 1.4vmin);
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+  pointer-events: auto;
+
+  // Hide spinners
+  -moz-appearance: textfield;
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  &:focus {
+    border-color: rgba(58, 36, 24, 0.6);
+  }
+}
+
+.slider {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(58, 36, 24, 0.2);
+  border-radius: 2px;
+  outline: none;
+  pointer-events: auto;
+  cursor: pointer;
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #653a1b;
+    cursor: pointer;
+  }
+
+  &::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #653a1b;
+    cursor: pointer;
+    border: none;
+  }
+}

@@ -23,6 +23,10 @@ export interface ActionCell extends BaseCell {
   kind: "action";
   href?: string;
   onClick?: () => void;
+  /** Price displayed in top-right badge (green text) — enables card layout */
+  price?: number;
+  /** Image source for card layout (placeholder shown if absent) */
+  imageSrc?: string;
 }
 
 /** Props passed to every widget component */
@@ -37,6 +41,8 @@ export interface WidgetCell {
   /** Grid positions this widget occupies (holes punched in the back wall) */
   span: { centerX: number; centerY: number }[];
   component: ComponentType<WidgetProps>;
+  /** When current is true, the cell plays a subtle pop-out animation */
+  popRef?: { current: boolean };
 }
 
 export type CellDef = NavCell | ActionCell | WidgetCell;
@@ -60,6 +66,10 @@ export interface PageDef {
   /** RNG seed for deterministic grid pattern generation */
   seed: number;
   runnersPerWall?: Record<string, number>;
+  /** Ref to set of currently selected cell IDs (for toggle-style cells) */
+  selectedCellIdsRef?: { current: Set<string> };
+  /** Override hover pop distance for interactive cells in this page */
+  hoverPop?: number;
 }
 
 // ---------------------------------------------------------------------------

@@ -37,6 +37,44 @@
   }
 }
 
+.backButtonOverlay {
+  position: absolute;
+  bottom: 48px;
+  left: 48px;
+  z-index: 10;
+
+  @media (max-width: 768px) {
+    bottom: 24px;
+    left: 24px;
+  }
+}
+
+.backBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 1.5px solid rgba(58, 36, 24, 0.3);
+  border-radius: 50%;
+  background: rgba(183, 159, 146, 0.6);
+  color: #653a1b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+
+  &:hover {
+    background: rgba(183, 159, 146, 0.9);
+    border-color: rgba(58, 36, 24, 0.5);
+    transform: scale(1.05);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
 .pageTitle {
   position: relative;
 

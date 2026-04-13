@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useState } from "react";
 import { BACK_WALL_Z, SINK_DEPTH, CELL_SIZE } from "./constants";
 import { easeInOutCubic, phaseProgress } from "./utils";
 import { CameraController } from "./CameraController";
@@ -20,6 +20,14 @@ const DEFAULT_RUNNERS: Record<string, number> = {
   right: 5,
   top: 4,
   bottom: 4,
+};
+
+const NO_RUNNERS: Record<string, number> = {
+  back: 0,
+  left: 0,
+  right: 0,
+  top: 0,
+  bottom: 0,
 };
 
 const ENTER_PROGRESS_SPEED = 0.9;
@@ -74,6 +82,40 @@ function getDoorwayCenter(cell: CellDef): { x: number; y: number } {
     };
   }
   return { x: cell.centerX, y: cell.centerY };
+}
+
+// ---------------------------------------------------------------------------
+// Selection runner — renders CellLoadingRunner when cell is in selectedRef
+// ---------------------------------------------------------------------------
+
+function SelectionRunner({
+  cellId,
+  centerX,
+  centerY,
+  selectedRef,
+  backWallZ,
+}: {
+  cellId: string;
+  centerX: number;
+  centerY: number;
+  selectedRef: { current: Set<string> };
+  backWallZ?: number;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  useFrame(() => {
+    const isSelected = selectedRef.current.has(cellId);
+    if (isSelected !== visible) setVisible(isSelected);
+  });
+
+  if (!visible) return null;
+  return (
+    <CellLoadingRunner
+      centerX={centerX}
+      centerY={centerY}
+      backWallZ={backWallZ}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -235,7 +277,7 @@ export function Room() {
             centerZ={hiddenCenterZ}
             seed={childPage.seed}
             receiveShadow
-            runnersPerWall={childPage.runnersPerWall ?? DEFAULT_RUNNERS}
+            runnersPerWall={NO_RUNNERS}
             holes={cellsToHoles(childPage.cells, doorwayX, doorwayY)}
           >
             {childPage.cells.map((cell) => {
@@ -252,19 +294,31 @@ export function Room() {
                 );
               }
               return (
-                <InteractiveCell
-                  key={cell.id}
-                  cell={cell}
-                  isActive={false}
-                  isDisabled={false}
-                  progressRef={cellProgressRef}
-                  cellHoveredRef={cellHoveredRef}
-                  onClick={() => handleCellClick(cell)}
-                  offsetX={doorwayX}
-                  offsetY={doorwayY}
-                  backWallZ={childBackWallZ}
-                  visibilityRef={contentOpacityRef}
-                />
+                <group key={cell.id}>
+                  <InteractiveCell
+                    cell={cell}
+                    isActive={false}
+                    isDisabled={false}
+                    progressRef={cellProgressRef}
+                    cellHoveredRef={cellHoveredRef}
+                    onClick={() => handleCellClick(cell)}
+                    offsetX={doorwayX}
+                    offsetY={doorwayY}
+                    backWallZ={childBackWallZ}
+                    visibilityRef={contentOpacityRef}
+                    selectedRef={childPage.selectedCellIdsRef}
+                    hoverPop={childPage.hoverPop}
+                  />
+                  {childPage.selectedCellIdsRef && (
+                    <SelectionRunner
+                      cellId={cell.id}
+                      centerX={doorwayX + cell.centerX}
+                      centerY={doorwayY + cell.centerY}
+                      selectedRef={childPage.selectedCellIdsRef}
+                      backWallZ={childBackWallZ}
+                    />
+                  )}
+                </group>
               );
             })}
           </GridRoom>

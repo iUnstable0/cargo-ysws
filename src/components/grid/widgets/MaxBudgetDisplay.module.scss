@@ -1,0 +1,24 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.label {
+  font-family: var(--font-jbmono), "JetBrains Mono", monospace;
+  font-size: max(20px, 1.8vmin);
+  font-weight: 700;
+  color: #653a1b;
+}
+
+.value {
+  font-family: var(--font-jbmono), "JetBrains Mono", monospace;
+  font-size: max(16px, 2.4vmin);
+  font-weight: 800;
+  color: #653a1b;
+}

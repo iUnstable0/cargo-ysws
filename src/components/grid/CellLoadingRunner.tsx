@@ -35,8 +35,8 @@ export function CellLoadingRunner({
 
   // Build a closed rectangular path around the cell perimeter
   const { points, totalLen } = useMemo(() => {
-    const half = CELL_SIZE / 2 + 0.15; // slight outset so runner sits outside the cube
-    const z = backWallZ + 0.08; // just in front of the wall
+    const half = CELL_SIZE / 2 + 0.02; // tight to the cube edge
+    const z = backWallZ + 0.12; // in front of all cells
     const pts = [
       new THREE.Vector3(centerX - half, centerY - half, z),
       new THREE.Vector3(centerX + half, centerY - half, z),
@@ -44,7 +44,7 @@ export function CellLoadingRunner({
       new THREE.Vector3(centerX - half, centerY + half, z),
       new THREE.Vector3(centerX - half, centerY - half, z), // close the loop
     ];
-    const len = CELL_SIZE * 4 + 0.6; // perimeter
+    const len = (CELL_SIZE + 0.04) * 4; // perimeter
     return { points: pts, totalLen: len };
   }, [centerX, centerY, backWallZ]);
 
@@ -89,6 +89,8 @@ export function CellLoadingRunner({
       gapSize={totalLen}
       transparent
       opacity={0.9}
+      depthTest={false}
+      renderOrder={10}
     />
   );
 }

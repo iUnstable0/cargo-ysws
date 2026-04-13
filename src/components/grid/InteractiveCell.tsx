@@ -1,35 +1,31 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { Html, Edges } from "@react-three/drei";
-import type { EdgesRef } from "@react-three/drei";
+import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { useMemo, useRef } from "react";
 import {
   BACK_WALL_Z,
   CELL_SIZE,
-  CUBE_DEPTH,
   CUBE_HALF,
   HOVER_POP,
   SINK_DEPTH,
   PHASE_SINK_END,
-  ROOM_COLOR,
-  GRID_COLOR,
+  EDGE_HOVER_OPACITY,
+  EDGE_SELECTED_OPACITY,
 } from "./constants";
 import type { NavCell, ActionCell } from "./types";
 import { easeInOutCubic, phaseProgress } from "./utils";
+import { CellBody } from "./CellBody";
+import { CellTunnel } from "./CellTunnel";
 import styles from "./grid.module.scss";
 
 const HOVER_DAMP_IDLE = 14;
 const HOVER_DAMP_ACTIVE = 16;
-const PRESS_SINK = HOVER_POP * 0.5;
 const PRESS_DAMP = 22;
-const OPACITY_EPSILON = 0.001;
+const SELECTED_POP = 0.4;
+const SELECTED_DAMP = 12;
 const LABEL_EPSILON = 0.005;
-const SHADOW_POP_THRESHOLD = 0.12;
-const EDGE_HOVER_OPACITY = 0.45;
-const EDGE_DAMP = 18;
-const EDGE_SCALE = 1.002;
 const DISABLED_OPACITY = 0.5;
 const DISABLED_DAMP = 10;
 
@@ -44,6 +40,8 @@ export function InteractiveCell({
   offsetY = 0,
   backWallZ = BACK_WALL_Z,
   visibilityRef,
+  selectedRef,
+  hoverPop = HOVER_POP,
 }: {
   cell: NavCell | ActionCell;
   isActive: boolean;
@@ -51,110 +49,42 @@ export function InteractiveCell({
   progressRef: React.RefObject<number>;
   cellHoveredRef: React.RefObject<boolean>;
   onClick: () => void;
-  /** World-space offset for child rooms */
   offsetX?: number;
   offsetY?: number;
-  /** Override back wall Z for child rooms */
   backWallZ?: number;
-  /** Controls label/cube visibility for child room entry animation */
   visibilityRef?: React.RefObject<number>;
+  selectedRef?: { current: Set<string> };
+  hoverPop?: number;
 }) {
+  const pressSink = hoverPop * 0.5;
   const restZ = backWallZ - CUBE_HALF;
 
   const cubeGroupRef = useRef<THREE.Group>(null);
-  const cubeMeshRef = useRef<THREE.Mesh>(null);
-  const htmlRef = useRef<HTMLSpanElement>(null);
-  const edgesRef = useRef<EdgesRef>(null);
+  const htmlRef = useRef<HTMLDivElement>(null);
   const hovered = useRef(false);
   const pressed = useRef(false);
   const hoverT = useRef(0);
   const pressT = useRef(0);
-  const edgeOpacity = useRef(0);
+  const selectedT = useRef(0);
   const disabledT = useRef(isDisabled ? 1 : 0);
-  const lastCubeOpacity = useRef(1);
-  const lastEdgeOpacity = useRef(0);
   const lastLabelOpacity = useRef(1);
-  const lastCastShadow = useRef<boolean | null>(null);
-  const shadowOverlayMatRef = useRef<THREE.ShadowMaterial>(null);
 
-  const cubeMaterials = useMemo(
-    () => [
-      new THREE.MeshStandardMaterial({
-        color: "#a69080",
-        roughness: 0.8,
-        transparent: true,
-      }), // +X right
-      new THREE.MeshStandardMaterial({
-        color: "#9d8777",
-        roughness: 0.8,
-        transparent: true,
-      }), // -X left
-      new THREE.MeshStandardMaterial({
-        color: "#ad9787",
-        roughness: 0.8,
-        transparent: true,
-      }), // +Y top
-      new THREE.MeshStandardMaterial({
-        color: "#98826f",
-        roughness: 0.8,
-        transparent: true,
-      }), // -Y bottom
-      new THREE.MeshBasicMaterial({
-        color: ROOM_COLOR,
-        transparent: true,
-        polygonOffset: true,
-        polygonOffsetFactor: -2,
-        polygonOffsetUnits: -2,
-      }), // +Z front
-      new THREE.MeshStandardMaterial({
-        color: "#a08a7a",
-        roughness: 0.8,
-        transparent: true,
-      }), // -Z back
-    ],
-    [],
-  );
+  // Refs driven each frame, read by CellBody
+  const popT = useRef(0);
+  const edgeTarget = useRef(0);
+  const cubeOpacity = useRef(1);
 
-  const TUNNEL_DEPTH = CUBE_DEPTH;
-  const TUNNEL_SIZE = CELL_SIZE + 0.02;
-  const tunnelMats = useMemo(
-    () => [
-      new THREE.MeshStandardMaterial({
-        color: ROOM_COLOR,
-        side: THREE.BackSide,
-        roughness: 0.8,
-      }),
-      new THREE.MeshStandardMaterial({
-        color: ROOM_COLOR,
-        side: THREE.BackSide,
-        roughness: 0.8,
-      }),
-      new THREE.MeshStandardMaterial({
-        color: ROOM_COLOR,
-        side: THREE.BackSide,
-        roughness: 0.8,
-      }),
-      new THREE.MeshStandardMaterial({
-        color: ROOM_COLOR,
-        side: THREE.BackSide,
-        roughness: 0.8,
-      }),
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }),
-      new THREE.MeshBasicMaterial({
-        transparent: true,
-        opacity: 0,
-        visible: false,
-      }),
-    ],
-    [],
-  );
-
-  const shadowOverlayMeshRef = useRef<THREE.Mesh>(null);
+  // Reusable vectors for label size projection
+  const _labelV1 = useMemo(() => new THREE.Vector3(), []);
+  const _labelV2 = useMemo(() => new THREE.Vector3(), []);
+  const lastLabelWidth = useRef(0);
+  const lastLabelHeight = useRef(0);
+  const hasPrice = cell.kind === "action" && cell.price != null;
 
   const worldX = offsetX + cell.centerX;
   const worldY = offsetY + cell.centerY;
 
-  useFrame((_, delta) => {
+  useFrame(({ camera, size }, delta) => {
     if (!cubeGroupRef.current) return;
     const p = progressRef.current ?? 0;
 
@@ -185,74 +115,73 @@ export function InteractiveCell({
     );
     if (pressTarget === 0 && pressT.current < 0.01) pressT.current = 0;
 
+    // Selected state animation
+    const isSelected = selectedRef?.current.has(cell.id) ?? false;
+    const selectedTarget = isSelected ? 1 : 0;
+    selectedT.current = THREE.MathUtils.damp(
+      selectedT.current,
+      selectedTarget,
+      SELECTED_DAMP,
+      delta,
+    );
+    if (selectedTarget === 0 && selectedT.current < 0.02) selectedT.current = 0;
+
     const sinkP = isActive
       ? easeInOutCubic(phaseProgress(p, 0, PHASE_SINK_END))
       : 0;
     cubeGroupRef.current.position.z =
       restZ +
-      hoverT.current * HOVER_POP -
-      pressT.current * PRESS_SINK -
+      hoverT.current * hoverPop * (1 - selectedT.current * 0.85) +
+      selectedT.current * SELECTED_POP -
+      pressT.current * pressSink -
       sinkP * SINK_DEPTH;
 
-    // Cube opacity — also blend in disabled state
+    // Drive CellBody refs
+    popT.current =
+      sinkP > 0.01
+        ? 0
+        : Math.max(hoverT.current, selectedT.current > 0.1 ? selectedT.current : 0);
+
+    edgeTarget.current =
+      !isActive && !isDisabled && hovered.current
+        ? EDGE_HOVER_OPACITY
+        : selectedT.current > 0.1
+          ? EDGE_SELECTED_OPACITY
+          : 0;
+
     const baseCubeOpacity = isActive ? Math.max(0, 1 - sinkP * 1.5) : 1;
-    const cubeOpacity =
+    cubeOpacity.current =
       baseCubeOpacity * (1 - disabledT.current * (1 - DISABLED_OPACITY));
-    if (Math.abs(cubeOpacity - lastCubeOpacity.current) > OPACITY_EPSILON) {
-      const shouldDepthWrite = cubeOpacity > 0.01;
-      cubeMaterials.forEach((mat) => {
-        mat.opacity = cubeOpacity;
-        mat.depthWrite = shouldDepthWrite;
-      });
-      lastCubeOpacity.current = cubeOpacity;
-    }
 
-    // Shadow casting
-    if (cubeMeshRef.current) {
-      const shouldCastShadow =
-        (hoverT.current > SHADOW_POP_THRESHOLD || isActive) &&
-        cubeOpacity > 0.05;
-      if (lastCastShadow.current !== shouldCastShadow) {
-        cubeMeshRef.current.castShadow = shouldCastShadow;
-        lastCastShadow.current = shouldCastShadow;
-      }
-    }
+    // Label size — project cell dimensions from 3D to screen pixels
+    if (htmlRef.current) {
+      const halfCell = CELL_SIZE / 2;
 
-    // Shadow overlay
-    if (shadowOverlayMatRef.current) {
-      const overlayOpacity =
-        sinkP > 0.01 ? 0 : Math.min(1, hoverT.current / 0.02) * 0.3;
-      shadowOverlayMatRef.current.opacity = overlayOpacity;
-    }
-    if (shadowOverlayMeshRef.current) {
-      shadowOverlayMeshRef.current.receiveShadow =
-        sinkP < 0.01 && hoverT.current > 0.02;
-    }
-
-    // Edge opacity
-    if (edgesRef.current) {
-      const targetEdgeOpacity =
-        !isActive && !isDisabled && hovered.current ? EDGE_HOVER_OPACITY : 0;
-      edgeOpacity.current = THREE.MathUtils.damp(
-        edgeOpacity.current,
-        targetEdgeOpacity,
-        EDGE_DAMP,
-        delta,
-      );
-      if (targetEdgeOpacity === 0 && edgeOpacity.current < 0.001) {
-        edgeOpacity.current = 0;
+      _labelV1.set(worldX - halfCell, worldY, backWallZ);
+      _labelV1.project(camera);
+      _labelV2.set(worldX + halfCell, worldY, backWallZ);
+      _labelV2.project(camera);
+      const x1 = ((_labelV1.x + 1) / 2) * size.width;
+      const x2 = ((_labelV2.x + 1) / 2) * size.width;
+      const projW = Math.abs(x2 - x1);
+      if (projW > 10 && Math.abs(projW - lastLabelWidth.current) > 1) {
+        htmlRef.current.style.maxWidth = `${projW}px`;
+        if (hasPrice) htmlRef.current.style.width = `${projW}px`;
+        lastLabelWidth.current = projW;
       }
 
-      if (
-        Math.abs(edgeOpacity.current - lastEdgeOpacity.current) >
-        OPACITY_EPSILON
-      ) {
-        const mat = edgesRef.current.material;
-        mat.transparent = true;
-        mat.opacity = edgeOpacity.current;
-        mat.depthWrite = false;
-        mat.depthTest = true;
-        lastEdgeOpacity.current = edgeOpacity.current;
+      if (hasPrice) {
+        _labelV1.set(worldX, worldY + halfCell, backWallZ);
+        _labelV1.project(camera);
+        _labelV2.set(worldX, worldY - halfCell, backWallZ);
+        _labelV2.project(camera);
+        const y1 = ((1 - _labelV1.y) / 2) * size.height;
+        const y2 = ((1 - _labelV2.y) / 2) * size.height;
+        const projH = Math.abs(y2 - y1);
+        if (projH > 10 && Math.abs(projH - lastLabelHeight.current) > 1) {
+          htmlRef.current.style.height = `${projH}px`;
+          lastLabelHeight.current = projH;
+        }
       }
     }
 
@@ -277,10 +206,12 @@ export function InteractiveCell({
     <>
       {/* Moving cube + label */}
       <group ref={cubeGroupRef} position={[worldX, worldY, restZ]}>
-        <mesh
-          ref={cubeMeshRef}
-          material={cubeMaterials}
-          receiveShadow
+        <CellBody
+          width={CELL_SIZE}
+          height={CELL_SIZE}
+          popT={popT}
+          edgeTarget={edgeTarget}
+          cubeOpacity={cubeOpacity}
           onPointerEnter={() => {
             if (!isActive && !isDisabled) {
               hovered.current = true;
@@ -310,37 +241,7 @@ export function InteractiveCell({
               onClick();
             }
           }}
-        >
-          <boxGeometry args={[CELL_SIZE, CELL_SIZE, CUBE_DEPTH]} />
-          <Edges
-            ref={edgesRef}
-            color={GRID_COLOR}
-            transparent
-            opacity={0}
-            scale={EDGE_SCALE}
-            renderOrder={3}
-          />
-        </mesh>
-
-        {/* Shadow-receiving overlay on front face */}
-        <mesh
-          ref={(mesh: THREE.Mesh | null) => {
-            shadowOverlayMeshRef.current = mesh;
-            if (mesh) mesh.raycast = () => {};
-          }}
-          position={[0, 0, CUBE_HALF + 0.01]}
-          receiveShadow
-        >
-          <planeGeometry args={[CELL_SIZE, CELL_SIZE]} />
-          <shadowMaterial
-            ref={shadowOverlayMatRef}
-            transparent
-            opacity={0}
-            polygonOffset
-            polygonOffsetFactor={1}
-            polygonOffsetUnits={1}
-          />
-        </mesh>
+        />
 
         {/* Label */}
         <Html
@@ -349,21 +250,42 @@ export function InteractiveCell({
           zIndexRange={[1, 0]}
           style={{ pointerEvents: "none" }}
         >
-          <span ref={htmlRef} className={styles.cellLabel}>
-            {cell.label}
-          </span>
+          {hasPrice ? (
+            <div ref={htmlRef} className={styles.prizeCard}>
+              <div className={styles.prizeImageArea}>
+                {(cell as ActionCell).imageSrc ? (
+                  <img
+                    src={(cell as ActionCell).imageSrc}
+                    alt={cell.label}
+                    className={styles.prizeImage}
+                  />
+                ) : (
+                  <div className={styles.prizePlaceholder} />
+                )}
+                <span className={styles.priceBadge}>
+                  ${(cell as ActionCell).price}
+                </span>
+              </div>
+              <div className={styles.prizeNameBar}>
+                <span className={styles.prizeName}>{cell.label}</span>
+              </div>
+            </div>
+          ) : (
+            <div ref={htmlRef} className={styles.cellLabel}>
+              {cell.label}
+            </div>
+          )}
         </Html>
       </group>
 
       {/* Physical tunnel behind the wall */}
-      <group>
-        <mesh
-          position={[worldX, worldY, backWallZ - TUNNEL_DEPTH / 2]}
-          material={tunnelMats}
-        >
-          <boxGeometry args={[TUNNEL_SIZE, TUNNEL_SIZE, TUNNEL_DEPTH]} />
-        </mesh>
-      </group>
+      <CellTunnel
+        worldX={worldX}
+        worldY={worldY}
+        width={CELL_SIZE}
+        height={CELL_SIZE}
+        backWallZ={backWallZ}
+      />
     </>
   );
 }

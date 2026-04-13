@@ -26,6 +26,14 @@ export const LIP_DEPTH = CUBE_DEPTH;
 // --- Animation phase boundaries (within progress 0..1) ---
 export const PHASE_SINK_END = 0.4;
 
+// --- Shared cell-body visual constants ---
+export const SHADOW_POP_THRESHOLD = 0.12;
+export const EDGE_HOVER_OPACITY = 0.45;
+export const EDGE_SELECTED_OPACITY = 0.27;
+export const EDGE_DAMP = 18;
+export const EDGE_SCALE = 1.002;
+export const OPACITY_EPSILON = 0.001;
+
 // --- Type definitions ---
 export interface WallDef {
   id: string;

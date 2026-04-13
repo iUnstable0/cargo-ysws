@@ -6,6 +6,7 @@ import {
   useCallback,
   useRef,
   useReducer,
+  useEffect,
 } from "react";
 import type { ReactNode } from "react";
 import type { NavState, NavSegment, PageDef, CellDef } from "../types";
@@ -61,9 +62,11 @@ export function useNavigation(): NavigationContextValue {
 
 export function NavigationProvider({
   onDepthChange,
+  popPageRef,
   children,
 }: {
   onDepthChange?: (depth: number) => void;
+  popPageRef?: React.MutableRefObject<(() => void) | null>;
   children: ReactNode;
 }) {
   const stateRef = useRef<NavState>({ path: [] });
@@ -140,6 +143,14 @@ export function NavigationProvider({
     },
     [onDepthChange],
   );
+
+  // Bridge popPage out of the Canvas for the DOM back button
+  useEffect(() => {
+    if (popPageRef) popPageRef.current = popPage;
+    return () => {
+      if (popPageRef) popPageRef.current = null;
+    };
+  }, [popPage, popPageRef]);
 
   const value: NavigationContextValue = {
     state: stateRef.current,
