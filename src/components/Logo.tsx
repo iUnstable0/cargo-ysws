@@ -1,6 +1,6 @@
 "use client";
 
-import styles from "./logo.module.scss";
+import styles from "./Logo.module.scss";
 import Image from "next/image";
 
 import { motion } from "motion/react";
