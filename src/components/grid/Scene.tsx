@@ -4,13 +4,12 @@ import { Canvas } from "@react-three/fiber";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { ROOM_W, ROOM_H, ROOM_D, ROOM_COLOR } from "./constants";
 import { Room } from "./Room";
+import { NavigationProvider } from "./navigation/context";
 
 export default function Scene({
-  activeCell,
-  onCellChange,
+  onDepthChange,
 }: {
-  activeCell: string | null;
-  onCellChange: (id: string | null) => void;
+  onDepthChange?: (depth: number) => void;
 }) {
   return (
     <Canvas
@@ -48,14 +47,12 @@ export default function Scene({
         shadow-camera-bottom={-ROOM_H / 2}
       />
 
-      <Room activeCell={activeCell} onCellChange={onCellChange} />
+      <NavigationProvider onDepthChange={onDepthChange}>
+        <Room />
+      </NavigationProvider>
 
       <EffectComposer>
-        <Bloom
-          luminanceThreshold={1.2}
-          mipmapBlur
-          intensity={1.5}
-        />
+        <Bloom luminanceThreshold={1.2} mipmapBlur intensity={1.5} />
       </EffectComposer>
     </Canvas>
   );

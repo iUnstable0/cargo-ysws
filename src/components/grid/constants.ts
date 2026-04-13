@@ -22,11 +22,6 @@ export const HOVER_POP = 1.2;
 export const SINK_DEPTH = 4.5;
 export const LIP_DEPTH = CUBE_DEPTH;
 
-// --- Hidden room dimensions ---
-export const HIDDEN_ROOM_W = 24;
-export const HIDDEN_ROOM_H = 20;
-export const HIDDEN_ROOM_D = 12;
-export const HIDDEN_SCENE_SEED = SCENE_SEED + 1;
 
 // --- Animation phase boundaries (within progress 0..1) ---
 export const PHASE_SINK_END = 0.4;
@@ -55,13 +50,6 @@ export interface RunnerData {
   dashSize: number;
   speed: number;
   initialOffset: number;
-}
-
-export interface CellDef {
-  id: string;
-  label: string;
-  centerX: number;
-  centerY: number;
 }
 
 // --- Wall definitions ---
@@ -121,8 +109,3 @@ export const RUNNERS_PER_WALL: Record<string, number> = {
   bottom: 4,
 };
 
-// --- Interactive cell definitions ---
-export const INTERACTIVE_CELLS: CellDef[] = [
-  { id: "readmore", label: "Read More", centerX: -3.0, centerY: -3.0 },
-  { id: "join", label: "Join", centerX: 3.0, centerY: -3.0 },
-];

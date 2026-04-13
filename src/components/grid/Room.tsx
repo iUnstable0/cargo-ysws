@@ -2,53 +2,104 @@
 
 import { useFrame } from "@react-three/fiber";
 import { useRef, useCallback } from "react";
-import {
-  ROOM_W,
-  ROOM_H,
-  ROOM_D,
-  SCENE_SEED,
-  RUNNERS_PER_WALL,
-  HIDDEN_ROOM_W,
-  HIDDEN_ROOM_H,
-  HIDDEN_ROOM_D,
-  HIDDEN_SCENE_SEED,
-  BACK_WALL_Z,
-  SINK_DEPTH,
-  INTERACTIVE_CELLS,
-  CELL_SIZE,
-} from "./constants";
+import { BACK_WALL_Z, SINK_DEPTH, CELL_SIZE } from "./constants";
 import { easeInOutCubic, phaseProgress } from "./utils";
 import { CameraController } from "./CameraController";
 import { ParallaxGroup } from "./ParallaxGroup";
 import { GridRoom } from "./GridRoom";
 import { InteractiveCell } from "./InteractiveCell";
+import { WidgetMount } from "./WidgetMount";
+import { CellLoadingRunner } from "./CellLoadingRunner";
+import { useNavigation } from "./navigation/context";
+import { getPage, getRootPage } from "./pages";
+import type { CellDef, NavCell, ActionCell } from "./types";
 
-const HIDDEN_RUNNERS: Record<string, number> = {
-  back: 6,
-  left: 3,
-  right: 3,
-  top: 3,
-  bottom: 3,
+const DEFAULT_RUNNERS: Record<string, number> = {
+  back: 8,
+  left: 5,
+  right: 5,
+  top: 4,
+  bottom: 4,
 };
 
 const ENTER_PROGRESS_SPEED = 0.9;
 const EXIT_PROGRESS_SPEED = 1.2;
 
-export function Room({
-  activeCell,
-  onCellChange,
-}: {
-  activeCell: string | null;
-  onCellChange: (id: string | null) => void;
-}) {
-  const progressRef = useRef(0);
-  const directionRef = useRef<"in" | "out" | null>(null);
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Build CSG holes array from a page's cells. Coordinates are in the cell's own space. */
+function cellsToHoles(
+  cells: CellDef[],
+  offsetX = 0,
+  offsetY = 0,
+): { id: string; centerX: number; centerY: number; size: number }[] {
+  const holes: {
+    id: string;
+    centerX: number;
+    centerY: number;
+    size: number;
+  }[] = [];
+  for (const cell of cells) {
+    if (cell.kind === "widget") {
+      for (let i = 0; i < cell.span.length; i++) {
+        holes.push({
+          id: `${cell.id}-${i}`,
+          centerX: offsetX + cell.span[i].centerX,
+          centerY: offsetY + cell.span[i].centerY,
+          size: CELL_SIZE,
+        });
+      }
+    } else {
+      holes.push({
+        id: cell.id,
+        centerX: offsetX + cell.centerX,
+        centerY: offsetY + cell.centerY,
+        size: CELL_SIZE,
+      });
+    }
+  }
+  return holes;
+}
+
+/** Get the center of a doorway cell (handles widgets with span). */
+function getDoorwayCenter(cell: CellDef): { x: number; y: number } {
+  if (cell.kind === "widget") {
+    const xs = cell.span.map((s) => s.centerX);
+    const ys = cell.span.map((s) => s.centerY);
+    return {
+      x: xs.reduce((a, b) => a + b, 0) / xs.length,
+      y: ys.reduce((a, b) => a + b, 0) / ys.length,
+    };
+  }
+  return { x: cell.centerX, y: cell.centerY };
+}
+
+// ---------------------------------------------------------------------------
+// Room component
+// ---------------------------------------------------------------------------
+
+export function Room() {
+  const {
+    currentPage,
+    doorwayCell,
+    depth,
+    pushPage,
+    completePop,
+    directionRef,
+    progressRef,
+    loadingCellRef,
+  } = useNavigation();
 
   const parallaxRef = useRef(1);
   const cellHoveredRef = useRef(false);
   const contentOpacityRef = useRef(0);
   const cellProgressRef = useRef(0);
   const hiddenParallaxRef = useRef(0.15);
+
+  // Track which cell was clicked (persists across the animation)
+  const activeCellIdRef = useRef<string | null>(null);
 
   useFrame((_, delta) => {
     if (directionRef.current === "in") {
@@ -65,7 +116,8 @@ export function Room({
       if (progressRef.current <= 0.001) {
         progressRef.current = 0;
         directionRef.current = null;
-        onCellChange(null);
+        activeCellIdRef.current = null;
+        completePop();
       }
     }
 
@@ -76,72 +128,146 @@ export function Room({
   });
 
   const handleCellClick = useCallback(
-    (id: string) => {
-      onCellChange(id);
-      directionRef.current = "in";
+    (cell: NavCell | ActionCell) => {
+      if (cell.kind === "nav") {
+        const target = getPage(cell.target);
+        if (!target) return;
+        // Flash loading state then navigate
+        loadingCellRef.current = cell.id;
+        activeCellIdRef.current = cell.id;
+        queueMicrotask(() => {
+          loadingCellRef.current = null;
+          pushPage(cell.id, cell.target);
+        });
+      } else if (cell.kind === "action") {
+        if (cell.href) window.open(cell.href, "_blank");
+        if (cell.onClick) cell.onClick();
+      }
     },
-    [onCellChange],
+    [pushPage, loadingCellRef],
   );
 
-  const activeCellDef = activeCell
-    ? INTERACTIVE_CELLS.find((c) => c.id === activeCell)
-    : null;
+  // --- Main room (always root for now) ---
+  const mainPage = getRootPage();
+  const mainHoles = cellsToHoles(mainPage.cells);
 
-  // Hidden room center Z: behind back wall, past sink depth + gap
-  const hiddenCenterZ = activeCellDef
-    ? BACK_WALL_Z - SINK_DEPTH - 4 - HIDDEN_ROOM_D / 2
-    : 0;
+  // --- Child room (visible when depth > 0) ---
+  const childPage = depth > 0 ? currentPage : null;
+  const doorway = doorwayCell ? getDoorwayCenter(doorwayCell) : null;
+  const doorwayX = doorway?.x ?? 0;
+  const doorwayY = doorway?.y ?? 0;
+  const hiddenCenterZ =
+    childPage && doorway
+      ? BACK_WALL_Z - SINK_DEPTH - 4 - childPage.room.depth / 2
+      : 0;
+  const childBackWallZ =
+    childPage && doorway
+      ? hiddenCenterZ - childPage.room.depth / 2
+      : BACK_WALL_Z;
+
+  // Which main-room cell is the active doorway?
+  const activeCellId =
+    depth > 0 && doorwayCell ? doorwayCell.id : activeCellIdRef.current;
 
   return (
     <>
-      <CameraController activeCell={activeCell} progressRef={progressRef} />
+      <CameraController />
 
       <ParallaxGroup progressRef={parallaxRef} cellHoveredRef={cellHoveredRef}>
         {/* Main room */}
         <GridRoom
-          width={ROOM_W}
-          height={ROOM_H}
-          depth={ROOM_D}
-          seed={SCENE_SEED}
-          runnersPerWall={RUNNERS_PER_WALL}
+          width={mainPage.room.width}
+          height={mainPage.room.height}
+          depth={mainPage.room.depth}
+          seed={mainPage.seed}
+          runnersPerWall={mainPage.runnersPerWall ?? DEFAULT_RUNNERS}
           receiveShadow
-          holes={INTERACTIVE_CELLS.map((c) => ({
-            id: c.id,
-            centerX: c.centerX,
-            centerY: c.centerY,
-            size: CELL_SIZE,
-          }))}
+          holes={mainHoles}
         >
-          {/* Interactive cells */}
-          {INTERACTIVE_CELLS.map((cell) => (
-            <InteractiveCell
-              key={cell.id}
-              cell={cell}
-              isActive={activeCell === cell.id}
-              progressRef={cellProgressRef}
-              cellHoveredRef={cellHoveredRef}
-              onClick={() => handleCellClick(cell.id)}
-            />
-          ))}
+          {mainPage.cells.map((cell) => {
+            if (cell.kind === "widget") {
+              return (
+                <WidgetMount
+                  key={cell.id}
+                  cell={cell}
+                  visibilityRef={contentOpacityRef}
+                />
+              );
+            }
+            const isActive = activeCellId === cell.id;
+            const isLoadingThis = loadingCellRef.current === cell.id;
+            const isDisabled =
+              loadingCellRef.current !== null && !isLoadingThis;
+            return (
+              <group key={cell.id}>
+                <InteractiveCell
+                  cell={cell}
+                  isActive={isActive}
+                  isDisabled={isDisabled}
+                  progressRef={cellProgressRef}
+                  cellHoveredRef={cellHoveredRef}
+                  onClick={() => handleCellClick(cell)}
+                />
+                {isLoadingThis && (
+                  <CellLoadingRunner
+                    centerX={cell.centerX}
+                    centerY={cell.centerY}
+                  />
+                )}
+              </group>
+            );
+          })}
         </GridRoom>
       </ParallaxGroup>
 
-      {/* Hidden layer — gracefully detached permanently powered parallax */}
+      {/* Child page room (behind the doorway) */}
       <ParallaxGroup
         progressRef={hiddenParallaxRef}
         cellHoveredRef={cellHoveredRef}
       >
-        {activeCell && activeCellDef && (
+        {childPage && doorway && (
           <GridRoom
-            width={HIDDEN_ROOM_W}
-            height={HIDDEN_ROOM_H}
-            depth={HIDDEN_ROOM_D}
-            centerX={activeCellDef.centerX}
-            centerY={activeCellDef.centerY}
+            width={childPage.room.width}
+            height={childPage.room.height}
+            depth={childPage.room.depth}
+            centerX={doorwayX}
+            centerY={doorwayY}
             centerZ={hiddenCenterZ}
-            seed={HIDDEN_SCENE_SEED}
-            runnersPerWall={HIDDEN_RUNNERS}
-          />
+            seed={childPage.seed}
+            receiveShadow
+            runnersPerWall={childPage.runnersPerWall ?? DEFAULT_RUNNERS}
+            holes={cellsToHoles(childPage.cells, doorwayX, doorwayY)}
+          >
+            {childPage.cells.map((cell) => {
+              if (cell.kind === "widget") {
+                return (
+                  <WidgetMount
+                    key={cell.id}
+                    cell={cell}
+                    visibilityRef={contentOpacityRef}
+                    offsetX={doorwayX}
+                    offsetY={doorwayY}
+                    backWallZ={childBackWallZ}
+                  />
+                );
+              }
+              return (
+                <InteractiveCell
+                  key={cell.id}
+                  cell={cell}
+                  isActive={false}
+                  isDisabled={false}
+                  progressRef={cellProgressRef}
+                  cellHoveredRef={cellHoveredRef}
+                  onClick={() => handleCellClick(cell)}
+                  offsetX={doorwayX}
+                  offsetY={doorwayY}
+                  backWallZ={childBackWallZ}
+                  visibilityRef={contentOpacityRef}
+                />
+              );
+            })}
+          </GridRoom>
         )}
       </ParallaxGroup>
     </>

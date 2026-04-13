@@ -3,14 +3,9 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMemo, useRef } from "react";
-import {
-  ROOM_D,
-  BACK_WALL_Z,
-  SINK_DEPTH,
-  INTERACTIVE_CELLS,
-  HIDDEN_ROOM_D,
-} from "./constants";
+import { ROOM_D, BACK_WALL_Z, SINK_DEPTH } from "./constants";
 import { easeInOutCubic } from "./utils";
+import { useNavigation } from "./navigation/context";
 
 const CAMERA_RETURN_DAMP = 10;
 const LOOK_RETURN_DAMP = 12;
@@ -28,13 +23,23 @@ function dampVector3(
   current.z = THREE.MathUtils.damp(current.z, target.z, lambda, delta);
 }
 
-export function CameraController({
-  activeCell,
-  progressRef,
-}: {
-  activeCell: string | null;
-  progressRef: React.RefObject<number>;
-}) {
+/** Get the center position of a doorway cell (handles widget spans). */
+function getDoorwayPos(
+  cell: import("./types").CellDef,
+): { centerX: number; centerY: number } | null {
+  if (cell.kind === "widget") {
+    const xs = cell.span.map((s) => s.centerX);
+    const ys = cell.span.map((s) => s.centerY);
+    return {
+      centerX: xs.reduce((a, b) => a + b, 0) / xs.length,
+      centerY: ys.reduce((a, b) => a + b, 0) / ys.length,
+    };
+  }
+  return { centerX: cell.centerX, centerY: cell.centerY };
+}
+
+export function CameraController() {
+  const { doorwayCell, currentPage, progressRef, depth } = useNavigation();
   const { size } = useThree();
 
   const homePos = useMemo(() => new THREE.Vector3(0, 0, ROOM_D / 2 - 1), []);
@@ -44,33 +49,38 @@ export function CameraController({
   const _pos = useRef(new THREE.Vector3());
   const _look = useRef(new THREE.Vector3());
 
+  const isActive = depth > 0 && doorwayCell !== null;
+
   const targets = useMemo(() => {
-    if (!activeCell) return null;
-    const cell = INTERACTIVE_CELLS.find((c) => c.id === activeCell);
-    if (!cell) return null;
+    if (!doorwayCell) return null;
+    const pos = getDoorwayPos(doorwayCell);
+    if (!pos) return null;
+
+    const childDepth = currentPage.room.depth;
+
     return {
       approach: new THREE.Vector3(
-        cell.centerX,
-        cell.centerY,
+        pos.centerX,
+        pos.centerY,
         BACK_WALL_Z + 1.5,
       ),
       approachLook: new THREE.Vector3(
-        cell.centerX,
-        cell.centerY,
+        pos.centerX,
+        pos.centerY,
         BACK_WALL_Z - 4,
       ),
       through: new THREE.Vector3(
-        cell.centerX,
-        cell.centerY,
-        BACK_WALL_Z - SINK_DEPTH - 4 - HIDDEN_ROOM_D + (ROOM_D - 1),
+        pos.centerX,
+        pos.centerY,
+        BACK_WALL_Z - SINK_DEPTH - 4 - childDepth + (ROOM_D - 1),
       ),
       throughLook: new THREE.Vector3(
-        cell.centerX,
-        cell.centerY,
+        pos.centerX,
+        pos.centerY,
         BACK_WALL_Z - SINK_DEPTH - 18,
       ),
     };
-  }, [activeCell]);
+  }, [doorwayCell, currentPage.room.depth]);
 
   const curves = useMemo(() => {
     if (!targets) return null;
@@ -91,7 +101,7 @@ export function CameraController({
   useFrame(({ camera }, delta) => {
     const p = progressRef.current ?? 0;
 
-    if (activeCell && targets && curves && p > 0) {
+    if (isActive && targets && curves && p > 0) {
       const t = easeInOutCubic(p);
       curves.posCurve.getPoint(t, _pos.current);
       curves.lookCurve.getPoint(t, _look.current);
@@ -110,10 +120,8 @@ export function CameraController({
       const baseFov = 55;
       let targetFov = baseFov;
       if (aspect < 1) {
-        // Adjust FOV to maintain horizontal framed content
         const baseTan = Math.tan(THREE.MathUtils.degToRad(baseFov / 2));
         targetFov = THREE.MathUtils.radToDeg(2 * Math.atan(baseTan / aspect));
-        // Clamp to avoid extreme distortion
         targetFov = Math.max(55, Math.min(100, targetFov));
       }
       const nextFov = THREE.MathUtils.damp(

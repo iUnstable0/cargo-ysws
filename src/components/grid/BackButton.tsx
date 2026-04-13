@@ -3,19 +3,16 @@
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import { useRef } from "react";
-import { BACK_WALL_Z, SINK_DEPTH, INTERACTIVE_CELLS } from "./constants";
+import { BACK_WALL_Z, SINK_DEPTH } from "./constants";
+import { useNavigation } from "./navigation/context";
 import styles from "./grid.module.scss";
 
 export function BackButton({
-  cellId,
-  onBack,
   opacityRef,
 }: {
-  cellId: string;
-  onBack: () => void;
   opacityRef: React.RefObject<number>;
 }) {
-  const cell = INTERACTIVE_CELLS.find((c) => c.id === cellId);
+  const { doorwayCell, popPage } = useNavigation();
   const containerRef = useRef<HTMLDivElement>(null);
 
   useFrame(() => {
@@ -26,18 +23,30 @@ export function BackButton({
     }
   });
 
-  if (!cell) return null;
+  if (!doorwayCell) return null;
+
+  // Get center position for the doorway cell
+  let cx: number, cy: number;
+  if (doorwayCell.kind === "widget") {
+    const xs = doorwayCell.span.map((s) => s.centerX);
+    const ys = doorwayCell.span.map((s) => s.centerY);
+    cx = xs.reduce((a, b) => a + b, 0) / xs.length;
+    cy = ys.reduce((a, b) => a + b, 0) / ys.length;
+  } else {
+    cx = doorwayCell.centerX;
+    cy = doorwayCell.centerY;
+  }
 
   return (
     <Html
-      position={[cell.centerX, cell.centerY, BACK_WALL_Z - SINK_DEPTH - 8]}
+      position={[cx, cy, BACK_WALL_Z - SINK_DEPTH - 8]}
       center
       distanceFactor={22}
       zIndexRange={[6, 0]}
     >
       <div ref={containerRef} style={{ opacity: 0 }}>
-        <button className={styles.backButton} onClick={onBack}>
-          ← Back
+        <button className={styles.backButton} onClick={popPage}>
+          &larr; Back
         </button>
       </div>
     </Html>

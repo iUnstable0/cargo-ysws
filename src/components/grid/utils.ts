@@ -46,15 +46,22 @@ function totalLineDistance(points: THREE.Vector3[]): number {
 function getSymmetricGridPoints(length: number, step: number): number[] {
   const points: number[] = [];
   const center = length / 2;
+  // When the number of whole cells is even, place grid lines at integer
+  // multiples of step from center (0, ±step, ±2*step …). This aligns with
+  // cells whose centers sit at half-step offsets (e.g. ±1.5).
+  // When odd (original behaviour), lines sit at half-step offsets
+  // ((k+0.5)*step) and align with cells at integer positions (0, ±3, …).
+  const even = Math.floor(length / step) % 2 === 0;
+  const offset = even ? 0 : 0.5;
   // Right from center
   for (let k = 0; ; k++) {
-    const pt = center + (k + 0.5) * step;
-    if (pt >= length) break;
+    const pt = center + (k + offset) * step;
+    if (pt >= length || pt <= 0) break;
     points.push(pt);
   }
   // Left from center
-  for (let k = 0; ; k++) {
-    const pt = center - (k + 0.5) * step;
+  for (let k = even ? 1 : 0; ; k++) {
+    const pt = center - (k + offset) * step;
     if (pt <= 0) break;
     points.push(pt);
   }
