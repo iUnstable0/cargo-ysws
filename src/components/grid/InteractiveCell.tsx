@@ -284,7 +284,9 @@ export function InteractiveCell({
                   <div className={styles.prizePlaceholder} />
                 )}
                 <span className={styles.priceBadge}>
-                  ${(cell as ActionCell).price}
+                  {(cell as ActionCell).price === 0
+                    ? "FREE"
+                    : `$${(cell as ActionCell).price}`}
                 </span>
               </div>
               <div className={styles.prizeNameBar}>
