@@ -67,7 +67,6 @@ function cellsToHoles(
 export function Room() {
   const {
     roomStack,
-    depth,
     pushPage,
     completeForward,
     completePop,
@@ -85,8 +84,9 @@ export function Room() {
   const childContentOpacityRef = useRef(0);
   const cellProgressRef = useRef(0);
 
-  // Track which cell was clicked (persists across the animation)
-  const activeCellIdRef = useRef<string | null>(null);
+  // A ref that always reads 1 — used to keep the doorway cell fully sunk
+  // during backward transitions so the camera doesn't pass through its face.
+  const fixedSunkRef = useRef(1);
 
   // ---------------------------------------------------------------------------
   // Determine which rooms to render
@@ -102,10 +102,12 @@ export function Room() {
       ? roomStack[roomStack.length - 2]
       : null;
 
-  const settledBackWallZ = -settledEntry.page.room.depth / 2;
-  const parentBackWallZ = parentEntry
-    ? -parentEntry.page.room.depth / 2
-    : 0;
+  // The doorway cell on the parent room that leads to the child room.
+  // Used to keep the cell sunk during both forward and backward transitions.
+  const doorwayCellId =
+    roomStack.length > 1
+      ? (roomStack[roomStack.length - 1].doorwayCell?.id ?? null)
+      : null;
 
   // ---------------------------------------------------------------------------
   // Animation loop
@@ -119,7 +121,6 @@ export function Room() {
       );
       if (progressRef.current >= 1) {
         progressRef.current = 0;
-        activeCellIdRef.current = null;
         completeForward();
         return;
       }
@@ -130,7 +131,6 @@ export function Room() {
       );
       if (progressRef.current <= 0.001) {
         progressRef.current = 0;
-        activeCellIdRef.current = null;
         completePop();
         return;
       }
@@ -176,7 +176,6 @@ export function Room() {
       if (cell.kind === "nav") {
         const target = getPage(cell.target);
         if (!target) return;
-        activeCellIdRef.current = cell.id;
         pushPage(cell.id, cell.target);
       } else if (cell.kind === "action") {
         if (cell.href) window.open(cell.href, "_blank");
@@ -208,7 +207,7 @@ export function Room() {
 
     return (
       <group
-        key={`room-${page.id}-${role}`}
+        key={page.id}
         position={[entry.worldX, entry.worldY, entry.worldZ]}
       >
         <ParallaxGroup
@@ -235,14 +234,22 @@ export function Room() {
                   />
                 );
               }
-              const isActive = activeCellIdRef.current === cell.id;
+              // Doorway cell on parent stays sunk during both forward and backward transitions.
+              // During backward, use fixedSunkRef (always 1) so the cell never unsinks
+              // while the camera passes through it.
+              const isDoorway = isParent && doorwayCellId === cell.id;
+              const isActive = isDoorway && isTransitioning;
+              const isBackwardDoorway =
+                isDoorway && directionRef.current === "out";
               return (
                 <group key={cell.id}>
                   <InteractiveCell
                     cell={cell}
                     isActive={isActive}
                     isDisabled={false}
-                    progressRef={cellProgressRef}
+                    progressRef={
+                      isBackwardDoorway ? fixedSunkRef : cellProgressRef
+                    }
                     cellHoveredRef={cellHoveredRef}
                     onClick={() => handleCellClick(cell)}
                     backWallZ={backWallZ}
