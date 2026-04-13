@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { useRef, useCallback, useState } from "react";
+import { useRef, useCallback } from "react";
 import { SINK_DEPTH, CELL_SIZE } from "./constants";
 import { easeInOutCubic, phaseProgress } from "./utils";
 import { CameraController } from "./CameraController";
@@ -37,7 +37,7 @@ const EXIT_PROGRESS_SPEED = 1.2;
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Build CSG holes array from a page's cells. Coordinates are in the cell's own space. */
+/** Build CSG holes array from a page's cells. */
 function cellsToHoles(
   cells: CellDef[],
   offsetX = 0,
@@ -85,41 +85,7 @@ function getDoorwayCenter(cell: CellDef): { x: number; y: number } {
 }
 
 // ---------------------------------------------------------------------------
-// Selection runner — renders CellLoadingRunner when cell is in selectedRef
-// ---------------------------------------------------------------------------
-
-function SelectionRunner({
-  cellId,
-  centerX,
-  centerY,
-  selectedRef,
-  backWallZ,
-}: {
-  cellId: string;
-  centerX: number;
-  centerY: number;
-  selectedRef: { current: Set<string> };
-  backWallZ?: number;
-}) {
-  const [visible, setVisible] = useState(false);
-
-  useFrame(() => {
-    const isSelected = selectedRef.current.has(cellId);
-    if (isSelected !== visible) setVisible(isSelected);
-  });
-
-  if (!visible) return null;
-  return (
-    <CellLoadingRunner
-      centerX={centerX}
-      centerY={centerY}
-      backWallZ={backWallZ}
-    />
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Room component
+// Room component — settle-teleport model for infinite nesting
 // ---------------------------------------------------------------------------
 
 export function Room() {
@@ -129,6 +95,7 @@ export function Room() {
     doorwayCell,
     depth,
     pushPage,
+    completeForward,
     completePop,
     directionRef,
     progressRef,
@@ -137,12 +104,58 @@ export function Room() {
 
   const parallaxRef = useRef(1);
   const cellHoveredRef = useRef(false);
-  const contentOpacityRef = useRef(0);
+  const mainWidgetOpacityRef = useRef(1);
+  const childContentOpacityRef = useRef(0);
   const cellProgressRef = useRef(0);
   const hiddenParallaxRef = useRef(0.15);
 
   // Track which cell was clicked (persists across the animation)
   const activeCellIdRef = useRef<string | null>(null);
+
+  // ---------------------------------------------------------------------------
+  // Direction-aware room selection
+  // ---------------------------------------------------------------------------
+  // Transitioning: parent at origin, current behind back wall
+  // Settled: current at origin, no child
+  const isTransitioning = directionRef.current !== null && depth > 0;
+
+  const mainPage = isTransitioning
+    ? (parentPage ?? getRootPage())
+    : depth > 0
+      ? currentPage
+      : getRootPage();
+
+  const childPage = isTransitioning ? currentPage : null;
+
+  const doorway =
+    isTransitioning && doorwayCell ? getDoorwayCenter(doorwayCell) : null;
+  const doorwayX = doorway?.x ?? 0;
+  const doorwayY = doorway?.y ?? 0;
+
+  // Dynamic geometry based on the actual main room
+  const mainBackWallZ = -mainPage.room.depth / 2;
+
+  const hiddenCenterZ =
+    childPage && doorway
+      ? mainBackWallZ - SINK_DEPTH - 4 - childPage.room.depth / 2
+      : 0;
+  const childBackWallZ =
+    childPage && doorway
+      ? hiddenCenterZ - childPage.room.depth / 2
+      : mainBackWallZ;
+
+  // Which main-room cell is the active doorway?
+  const activeCellId =
+    isTransitioning && doorwayCell
+      ? doorwayCell.id
+      : activeCellIdRef.current;
+
+  // Holes for the main room's back wall
+  const mainHoles = cellsToHoles(mainPage.cells);
+
+  // ---------------------------------------------------------------------------
+  // Animation loop
+  // ---------------------------------------------------------------------------
 
   useFrame((_, delta) => {
     if (directionRef.current === "in") {
@@ -150,7 +163,13 @@ export function Room() {
         1,
         progressRef.current + delta * ENTER_PROGRESS_SPEED,
       );
-      if (progressRef.current >= 1) directionRef.current = null;
+      if (progressRef.current >= 1) {
+        // Forward teleport: child becomes the settled room
+        progressRef.current = 0;
+        activeCellIdRef.current = null;
+        completeForward();
+        return; // Skip ref updates — next frame will run with settled state
+      }
     } else if (directionRef.current === "out") {
       progressRef.current = Math.max(
         0,
@@ -158,24 +177,41 @@ export function Room() {
       );
       if (progressRef.current <= 0.001) {
         progressRef.current = 0;
-        directionRef.current = null;
         activeCellIdRef.current = null;
         completePop();
+        return;
       }
     }
 
     const p = progressRef.current;
     parallaxRef.current = 1 - easeInOutCubic(Math.min(p / 0.4, 1));
-    contentOpacityRef.current = easeInOutCubic(phaseProgress(p, 0.55, 0.8));
+    childContentOpacityRef.current = easeInOutCubic(
+      phaseProgress(p, 0.55, 0.8),
+    );
     cellProgressRef.current = p;
+
+    // Main room widget visibility:
+    // When settled (p=0, no direction): fully visible
+    // When transitioning in: fade out during first 30% of progress
+    if (directionRef.current !== null) {
+      mainWidgetOpacityRef.current = Math.max(
+        0,
+        1 - easeInOutCubic(Math.min(p / 0.3, 1)),
+      );
+    } else {
+      mainWidgetOpacityRef.current = 1;
+    }
   });
+
+  // ---------------------------------------------------------------------------
+  // Cell click handler
+  // ---------------------------------------------------------------------------
 
   const handleCellClick = useCallback(
     (cell: NavCell | ActionCell) => {
       if (cell.kind === "nav") {
         const target = getPage(cell.target);
         if (!target) return;
-        // Flash loading state then navigate
         loadingCellRef.current = cell.id;
         activeCellIdRef.current = cell.id;
         queueMicrotask(() => {
@@ -190,35 +226,19 @@ export function Room() {
     [pushPage, loadingCellRef],
   );
 
-  // --- Main room (parent page, or root when at depth 0–1) ---
-  const mainPage = parentPage ?? getRootPage();
-  const mainBackWallZ = -mainPage.room.depth / 2;
-  const mainHoles = cellsToHoles(mainPage.cells);
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
-  // --- Child room (visible when depth > 0) ---
-  const childPage = depth > 0 ? currentPage : null;
-  const doorway = doorwayCell ? getDoorwayCenter(doorwayCell) : null;
-  const doorwayX = doorway?.x ?? 0;
-  const doorwayY = doorway?.y ?? 0;
-  const hiddenCenterZ =
-    childPage && doorway
-      ? mainBackWallZ - SINK_DEPTH - 4 - childPage.room.depth / 2
-      : 0;
-  const childBackWallZ =
-    childPage && doorway
-      ? hiddenCenterZ - childPage.room.depth / 2
-      : mainBackWallZ;
-
-  // Which main-room cell is the active doorway?
-  const activeCellId =
-    depth > 0 && doorwayCell ? doorwayCell.id : activeCellIdRef.current;
+  // Cells in the main room are interactive only when settled (not transitioning)
+  const mainCellsDisabled = isTransitioning;
 
   return (
     <>
       <CameraController />
 
+      {/* Main room (at origin) */}
       <ParallaxGroup progressRef={parallaxRef} cellHoveredRef={cellHoveredRef}>
-        {/* Main room */}
         <GridRoom
           width={mainPage.room.width}
           height={mainPage.room.height}
@@ -234,7 +254,7 @@ export function Room() {
                 <WidgetMount
                   key={cell.id}
                   cell={cell}
-                  visibilityRef={contentOpacityRef}
+                  visibilityRef={mainWidgetOpacityRef}
                   backWallZ={mainBackWallZ}
                 />
               );
@@ -242,7 +262,8 @@ export function Room() {
             const isActive = activeCellId === cell.id;
             const isLoadingThis = loadingCellRef.current === cell.id;
             const isDisabled =
-              loadingCellRef.current !== null && !isLoadingThis;
+              mainCellsDisabled ||
+              (loadingCellRef.current !== null && !isLoadingThis);
             return (
               <group key={cell.id}>
                 <InteractiveCell
@@ -267,7 +288,7 @@ export function Room() {
         </GridRoom>
       </ParallaxGroup>
 
-      {/* Child page room (behind the doorway) */}
+      {/* Child room (behind the main room's back wall, only during transitions) */}
       <ParallaxGroup
         progressRef={hiddenParallaxRef}
         cellHoveredRef={cellHoveredRef}
@@ -291,7 +312,7 @@ export function Room() {
                   <WidgetMount
                     key={cell.id}
                     cell={cell}
-                    visibilityRef={contentOpacityRef}
+                    visibilityRef={childContentOpacityRef}
                     offsetX={doorwayX}
                     offsetY={doorwayY}
                     backWallZ={childBackWallZ}
@@ -310,19 +331,10 @@ export function Room() {
                     offsetX={doorwayX}
                     offsetY={doorwayY}
                     backWallZ={childBackWallZ}
-                    visibilityRef={contentOpacityRef}
+                    visibilityRef={childContentOpacityRef}
                     selectedRef={childPage.selectedCellIdsRef}
                     hoverPop={childPage.hoverPop}
                   />
-                  {childPage.selectedCellIdsRef && (
-                    <SelectionRunner
-                      cellId={cell.id}
-                      centerX={doorwayX + cell.centerX}
-                      centerY={doorwayY + cell.centerY}
-                      selectedRef={childPage.selectedCellIdsRef}
-                      backWallZ={childBackWallZ}
-                    />
-                  )}
                 </group>
               );
             })}

@@ -3,9 +3,10 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMemo, useRef } from "react";
-import { ROOM_D, BACK_WALL_Z, SINK_DEPTH } from "./constants";
+import { SINK_DEPTH } from "./constants";
 import { easeInOutCubic } from "./utils";
 import { useNavigation } from "./navigation/context";
+import { getRootPage } from "./pages";
 
 const CAMERA_RETURN_DAMP = 10;
 const LOOK_RETURN_DAMP = 12;
@@ -39,17 +40,43 @@ function getDoorwayPos(
 }
 
 export function CameraController() {
-  const { doorwayCell, currentPage, progressRef, depth } = useNavigation();
+  const { doorwayCell, currentPage, parentPage, progressRef, depth, directionRef } =
+    useNavigation();
   const { size } = useThree();
 
-  const homePos = useMemo(() => new THREE.Vector3(0, 0, ROOM_D / 2 - 1), []);
+  // Dynamic homePos: based on the settled room's depth
+  // When settled (no transition): current page is at origin
+  // When transitioning: parent page is at origin
+  const settledRoomDepth =
+    directionRef.current !== null && depth > 0
+      ? (parentPage ?? getRootPage()).room.depth
+      : currentPage.room.depth;
+
+  const homePos = useMemo(
+    () => new THREE.Vector3(0, 0, settledRoomDepth / 2 - 1),
+    [settledRoomDepth],
+  );
   const homeLookAt = useMemo(() => new THREE.Vector3(0, 0, 0), []);
   const currentLookAt = useRef(new THREE.Vector3(0, 0, 0));
 
   const _pos = useRef(new THREE.Vector3());
   const _look = useRef(new THREE.Vector3());
 
-  const isActive = depth > 0 && doorwayCell !== null;
+  // Teleport snap detection: only snap when a transition completes (direction → null),
+  // NOT when a transition starts (null → "out"). This prevents premature camera jumps
+  // when popPage triggers the reverse teleport.
+  const prevDirectionRef = useRef<"in" | "out" | null>(null);
+  const snapNextFrame = useRef(false);
+  if (directionRef.current === null && prevDirectionRef.current !== null) {
+    snapNextFrame.current = true;
+  }
+  prevDirectionRef.current = directionRef.current;
+
+  // Only follow the CatmullRom curve when actively transitioning
+  const isAnimating = directionRef.current !== null && depth > 0 && doorwayCell !== null;
+
+  // Compute transition targets from the parent room (at origin) to the child room
+  const parentDepth = (parentPage ?? getRootPage()).room.depth;
 
   const targets = useMemo(() => {
     if (!doorwayCell) return null;
@@ -57,30 +84,35 @@ export function CameraController() {
     if (!pos) return null;
 
     const childDepth = currentPage.room.depth;
+    const parentBackWallZ = -parentDepth / 2;
+    const childCenterZ =
+      parentBackWallZ - SINK_DEPTH - 4 - childDepth / 2;
 
     return {
       approach: new THREE.Vector3(
         pos.centerX,
         pos.centerY,
-        BACK_WALL_Z + 1.5,
+        parentBackWallZ + 1.5,
       ),
       approachLook: new THREE.Vector3(
         pos.centerX,
         pos.centerY,
-        BACK_WALL_Z - 4,
+        parentBackWallZ - 4,
       ),
+      // "through" = child room's homePos in world space
       through: new THREE.Vector3(
         pos.centerX,
         pos.centerY,
-        BACK_WALL_Z - SINK_DEPTH - 4 - childDepth + (ROOM_D - 1),
+        childCenterZ + childDepth / 2 - 1,
       ),
+      // "throughLook" = child room's center in world space
       throughLook: new THREE.Vector3(
         pos.centerX,
         pos.centerY,
-        BACK_WALL_Z - SINK_DEPTH - 18,
+        childCenterZ,
       ),
     };
-  }, [doorwayCell, currentPage.room.depth]);
+  }, [doorwayCell, currentPage.room.depth, parentDepth]);
 
   const curves = useMemo(() => {
     if (!targets) return null;
@@ -101,7 +133,16 @@ export function CameraController() {
   useFrame(({ camera }, delta) => {
     const p = progressRef.current ?? 0;
 
-    if (isActive && targets && curves && p > 0) {
+    // Teleport snap — skip damping for this frame
+    if (snapNextFrame.current) {
+      snapNextFrame.current = false;
+      camera.position.copy(homePos);
+      currentLookAt.current.copy(homeLookAt);
+      camera.lookAt(currentLookAt.current);
+      return;
+    }
+
+    if (isAnimating && targets && curves && p > 0) {
       const t = easeInOutCubic(p);
       curves.posCurve.getPoint(t, _pos.current);
       curves.lookCurve.getPoint(t, _look.current);
@@ -109,6 +150,7 @@ export function CameraController() {
       camera.position.copy(_pos.current);
       currentLookAt.current.copy(_look.current);
     } else {
+      // Settled or at root — damp to homePos
       dampVector3(camera.position, homePos, CAMERA_RETURN_DAMP, delta);
       dampVector3(currentLookAt.current, homeLookAt, LOOK_RETURN_DAMP, delta);
     }

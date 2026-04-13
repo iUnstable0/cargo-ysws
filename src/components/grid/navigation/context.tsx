@@ -31,6 +31,8 @@ export interface NavigationContextValue {
   popPage: () => void;
   /** Jump to a specific depth (for breadcrumbs) */
   navigateToDepth: (depth: number) => void;
+  /** Called by Room when forward animation completes (teleport settle) */
+  completeForward: () => void;
   /** Called by Room when exit animation completes */
   completePop: () => void;
   /** Transition direction — drives useFrame animation */
@@ -119,6 +121,14 @@ export function NavigationProvider({
 
   const popPage = useCallback(() => {
     directionRef.current = "out";
+    progressRef.current = 1;
+    forceUpdate();
+  }, []);
+
+  const completeForward = useCallback(() => {
+    directionRef.current = null;
+    progressRef.current = 0;
+    forceUpdate();
   }, []);
 
   const completePop = useCallback(() => {
@@ -159,6 +169,7 @@ export function NavigationProvider({
     doorwayCell,
     pushPage,
     popPage,
+    completeForward,
     completePop,
     navigateToDepth,
     directionRef,
