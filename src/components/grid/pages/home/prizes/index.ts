@@ -1,6 +1,6 @@
 import type { PageDef } from "../../../types";
 import { SCENE_SEED } from "../../../constants";
-import { prizeToggleRef, selectedCellIdsRef, isOverBudgetRef } from "./PrizeContext";
+import { prizeToggleRef, selectedCellIdsRef } from "./PrizeContext";
 import { BudgetDisplay } from "../../../widgets/BudgetDisplay";
 import { MaxBudgetDisplay } from "../../../widgets/MaxBudgetDisplay";
 import { CreatorStoreInput, ItchGumroadInput } from "./PrizeInputWrappers";
@@ -20,7 +20,6 @@ export const prizesPage: PageDef = {
         { centerX: -3, centerY: 4.5 },
       ],
       component: BudgetDisplay,
-      popRef: isOverBudgetRef,
     },
     {
       kind: "widget",

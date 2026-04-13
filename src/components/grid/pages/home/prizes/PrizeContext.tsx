@@ -47,8 +47,6 @@ export const selectedCellIdsRef: { current: Set<string> } = {
   current: new Set(),
 };
 
-/** Read by WidgetMount to drive pop animation on the conjoined cell. */
-export const isOverBudgetRef: { current: boolean } = { current: false };
 
 // ---------------------------------------------------------------------------
 // Context
@@ -162,9 +160,6 @@ export function PrizeSelectionProvider({ children }: { children: ReactNode }) {
     selectedCellIdsRef.current = selected;
   }, [selected]);
 
-  useEffect(() => {
-    isOverBudgetRef.current = isOverBudget;
-  }, [isOverBudget]);
 
   const value: PrizeSelectionState = useMemo(
     () => ({

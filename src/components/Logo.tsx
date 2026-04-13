@@ -10,7 +10,7 @@ const MotionImage = motion.create(Image);
 export default function Logo() {
   return (
     <div className={styles.titleCtn}>
-      <div className={styles.title}>CARG</div>
+      <span className={styles.title}>CARG</span>
 
       <MotionImage
         className={styles.titleIcon}

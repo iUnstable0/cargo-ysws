@@ -6,13 +6,10 @@ import { SlidingNumber } from "@/components/mp/SlidingNumber";
 import styles from "./BudgetDisplay.module.scss";
 
 export function BudgetDisplay(_props: WidgetProps) {
-  const { totalCost, hoursRequired, maxBudget } =
+  const { totalCost, hoursRequired, isOverBudget } =
     usePrizeSelection();
 
-  // HSV lerp: green (hue 120) → red (hue 0) based on cost ratio
-  const ratio = Math.min(totalCost / maxBudget, 1);
-  const hue = 120 * (1 - ratio);
-  const color = `hsl(${hue}, 70%, 35%)`;
+  const color = isOverBudget ? "hsl(0, 70%, 35%)" : "#653a1b";
 
   return (
     <div className={styles.container}>
@@ -25,7 +22,7 @@ export function BudgetDisplay(_props: WidgetProps) {
       <div className={styles.row}>
         <span className={styles.label}>Hours required:</span>
         <span className={styles.value} style={{ color }}>
-          <SlidingNumber value={hoursRequired} />
+          <SlidingNumber value={Math.ceil(hoursRequired)} />
         </span>
       </div>
     </div>
