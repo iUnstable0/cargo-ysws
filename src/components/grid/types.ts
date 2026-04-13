@@ -27,6 +27,8 @@ export interface ActionCell extends BaseCell {
   price?: number;
   /** Image source for card layout (placeholder shown if absent) */
   imageSrc?: string;
+  /** CSS object-fit for the card image — defaults to "cover" */
+  imageObjectFit?: "cover" | "contain";
 }
 
 /** Props passed to every widget component */

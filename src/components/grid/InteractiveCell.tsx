@@ -295,6 +295,10 @@ export function InteractiveCell({
                     src={(cell as ActionCell).imageSrc}
                     alt={cell.label}
                     className={styles.prizeImage}
+                    style={{
+                      objectFit:
+                        (cell as ActionCell).imageObjectFit ?? "cover",
+                    }}
                   />
                 ) : (
                   <div className={styles.prizePlaceholder} />
