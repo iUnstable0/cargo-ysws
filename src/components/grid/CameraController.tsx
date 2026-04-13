@@ -3,10 +3,15 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useMemo, useRef } from "react";
+import { ROOM_D, ROOM_W } from "./constants";
 import { easeInOutCubic } from "./utils";
 import { useNavigation } from "./navigation/context";
 import type { RoomStackEntry } from "./navigation/context";
 import type { CellDef } from "./types";
+
+// Camera-to-backwall distance ratio from the home room: (ROOM_D - 1) / ROOM_W
+// This keeps the same visual zoom level regardless of room size.
+const HOME_CAMERA_RATIO = (ROOM_D - 1) / ROOM_W;
 
 const CAMERA_RETURN_DAMP = 10;
 const LOOK_RETURN_DAMP = 12;
@@ -39,12 +44,17 @@ function getDoorwayPos(
   return { centerX: cell.centerX, centerY: cell.centerY };
 }
 
-/** Compute world-space homePos for a room stack entry. */
+/** Compute world-space homePos for a room stack entry.
+ *  Camera distance from back wall scales with room width to match the home room's zoom level. */
 function entryHomePos(entry: RoomStackEntry): THREE.Vector3 {
+  const dist = Math.min(
+    HOME_CAMERA_RATIO * entry.page.room.width,
+    entry.page.room.depth - 1,
+  );
   return new THREE.Vector3(
     entry.worldX,
     entry.worldY,
-    entry.worldZ + entry.page.room.depth / 2 - 1,
+    entry.worldZ - entry.page.room.depth / 2 + dist,
   );
 }
 

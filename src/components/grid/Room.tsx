@@ -202,9 +202,13 @@ export function Room() {
     const backWallZ = -page.room.depth / 2;
     const isParent = role === "parent";
     const parallaxRef = isParent ? parentParallaxRef : settledParallaxRef;
+    // When settled (not transitioning), mainWidgetOpacityRef = 1 → fully visible.
+    // During transition: parent fades out (mainWidgetOpacityRef), child fades in (childContentOpacityRef).
     const widgetOpacity = isParent
       ? mainWidgetOpacityRef
-      : childContentOpacityRef;
+      : isTransitioning
+        ? childContentOpacityRef
+        : mainWidgetOpacityRef;
     const cellsDisabled = isTransitioning;
 
     return (
@@ -252,7 +256,11 @@ export function Room() {
                     onClick={() => handleCellClick(cell)}
                     backWallZ={backWallZ}
                     visibilityRef={
-                      isParent ? undefined : childContentOpacityRef
+                      isParent
+                        ? undefined
+                        : isTransitioning
+                          ? childContentOpacityRef
+                          : undefined
                     }
                     selectedRef={page.selectedCellIdsRef}
                     hoverPop={page.hoverPop}
