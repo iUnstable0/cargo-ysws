@@ -1,18 +1,41 @@
 .titleCtn {
-	display: flex;
+	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	gap: 0.02em;
+	line-height: 1;
 
 	.title {
+		display: block;
 		font-weight: 800;
 		color: #653a1b;
+		line-height: 1;
+	}
+
+	.titleIconWrap {
+		width: 0.95em;
+		height: 0.95em;
+		flex: none;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		align-self: center;
+		pointer-events: auto;
+	}
+
+	.titleIconMotion {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+		height: 100%;
+		cursor: pointer;
+		transform-origin: center;
 	}
 
 	.titleIcon {
-		width: 0.95em;
-		height: 0.95em;
-		cursor: pointer;
-
-		pointer-events: auto;
+		display: block;
+		width: 100%;
+		height: 100%;
 	}
 }

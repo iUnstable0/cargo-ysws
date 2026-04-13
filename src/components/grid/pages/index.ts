@@ -2,6 +2,8 @@ import type { PageDef, NavCell } from "../types";
 import { homePage } from "./home";
 import { enterPage } from "./home/enter";
 import { prizesPage } from "./home/prizes";
+import { readmorePage } from "./home/readmore";
+import { faqPage } from "./home/readmore/faq";
 
 // ---------------------------------------------------------------------------
 // Flat registry — O(1) lookup by page ID
@@ -11,6 +13,8 @@ const ALL_PAGES: Record<string, PageDef> = {
   home: homePage,
   prizes: prizesPage,
   enter: enterPage,
+  readmore: readmorePage,
+  faq: faqPage,
 };
 
 export const ROOT_PAGE_ID = "home";

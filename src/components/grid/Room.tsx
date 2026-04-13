@@ -2,7 +2,7 @@
 
 import { useFrame } from "@react-three/fiber";
 import { useRef, useCallback, useState } from "react";
-import { BACK_WALL_Z, SINK_DEPTH, CELL_SIZE } from "./constants";
+import { SINK_DEPTH, CELL_SIZE } from "./constants";
 import { easeInOutCubic, phaseProgress } from "./utils";
 import { CameraController } from "./CameraController";
 import { ParallaxGroup } from "./ParallaxGroup";
@@ -125,6 +125,7 @@ function SelectionRunner({
 export function Room() {
   const {
     currentPage,
+    parentPage,
     doorwayCell,
     depth,
     pushPage,
@@ -189,8 +190,9 @@ export function Room() {
     [pushPage, loadingCellRef],
   );
 
-  // --- Main room (always root for now) ---
-  const mainPage = getRootPage();
+  // --- Main room (parent page, or root when at depth 0–1) ---
+  const mainPage = parentPage ?? getRootPage();
+  const mainBackWallZ = -mainPage.room.depth / 2;
   const mainHoles = cellsToHoles(mainPage.cells);
 
   // --- Child room (visible when depth > 0) ---
@@ -200,12 +202,12 @@ export function Room() {
   const doorwayY = doorway?.y ?? 0;
   const hiddenCenterZ =
     childPage && doorway
-      ? BACK_WALL_Z - SINK_DEPTH - 4 - childPage.room.depth / 2
+      ? mainBackWallZ - SINK_DEPTH - 4 - childPage.room.depth / 2
       : 0;
   const childBackWallZ =
     childPage && doorway
       ? hiddenCenterZ - childPage.room.depth / 2
-      : BACK_WALL_Z;
+      : mainBackWallZ;
 
   // Which main-room cell is the active doorway?
   const activeCellId =
@@ -233,6 +235,7 @@ export function Room() {
                   key={cell.id}
                   cell={cell}
                   visibilityRef={contentOpacityRef}
+                  backWallZ={mainBackWallZ}
                 />
               );
             }
@@ -249,11 +252,13 @@ export function Room() {
                   progressRef={cellProgressRef}
                   cellHoveredRef={cellHoveredRef}
                   onClick={() => handleCellClick(cell)}
+                  backWallZ={mainBackWallZ}
                 />
                 {isLoadingThis && (
                   <CellLoadingRunner
                     centerX={cell.centerX}
                     centerY={cell.centerY}
+                    backWallZ={mainBackWallZ}
                   />
                 )}
               </group>

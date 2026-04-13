@@ -122,13 +122,13 @@ export function NavigationProvider({
   }, []);
 
   const completePop = useCallback(() => {
-    stateRef.current = {
-      path: stateRef.current.path.slice(0, -1),
-    };
+    const newPath = stateRef.current.path.slice(0, -1);
+    stateRef.current = { path: newPath };
     directionRef.current = null;
-    progressRef.current = 0;
+    // If still nested after pop, snap to fully entered so the parent child room stays visible
+    progressRef.current = newPath.length > 0 ? 1 : 0;
     forceUpdate();
-    onDepthChange?.(stateRef.current.path.length);
+    onDepthChange?.(newPath.length);
   }, [onDepthChange]);
 
   const navigateToDepth = useCallback(
