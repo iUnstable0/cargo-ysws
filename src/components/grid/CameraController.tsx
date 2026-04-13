@@ -165,8 +165,17 @@ export function CameraController() {
       const aspect = size.width / size.height;
 
       // Scale FOV so cells appear the same angular size regardless of room depth.
-      // Smaller rooms have shorter camera-to-backwall distance, so widen FOV to compensate.
-      const currentDist = settledEntry.page.room.depth - 1;
+      // During transitions, interpolate between parent and child FOV along the
+      // same easing curve as the camera position to avoid a spring-like zoom effect.
+      let currentDist: number;
+      if (directionRef.current !== null && parentEntry) {
+        const parentDist = parentEntry.page.room.depth - 1;
+        const childDist = childEntry.page.room.depth - 1;
+        const t = easeInOutCubic(p);
+        currentDist = parentDist + (childDist - parentDist) * t;
+      } else {
+        currentDist = settledEntry.page.room.depth - 1;
+      }
       const baseTanHalf = Math.tan(THREE.MathUtils.degToRad(BASE_FOV / 2));
       let targetFov = THREE.MathUtils.radToDeg(
         2 * Math.atan(baseTanHalf * HOME_DIST / currentDist),
