@@ -5,40 +5,30 @@ import Image from "next/image";
 
 import { motion } from "motion/react";
 
-const titleIconTransition = {
-  type: "spring",
-  stiffness: 180,
-  damping: 20,
-  mass: 1.5,
-};
+const MotionImage = motion.create(Image);
 
-type LogoProps = {
-  variant?: "inline" | "hero";
-};
-
-export default function Logo({ variant = "inline" }: LogoProps) {
-  const titleClassName = [styles.titleCtn, styles[variant]].join(" ");
-
+export default function Logo() {
   return (
-    <span className={titleClassName}>
-      <span className={styles.title}>CARG</span>
+    <div className={styles.titleCtn}>
+      <div className={styles.title}>CARG</div>
 
-      <span className={styles.titleIconWrap}>
-        <motion.span
-          className={styles.titleIconMotion}
-          whileHover={{ rotate: 180 }}
-          whileTap={{ scale: 1.05 }}
-          transition={titleIconTransition}
-        >
-          <Image
-            className={styles.titleIcon}
-            src="/logo.svg"
-            width={200}
-            height={200}
-            alt="Logo"
-          />
-        </motion.span>
-      </span>
-    </span>
+      <MotionImage
+        className={styles.titleIcon}
+        src={"logo.svg"}
+        width={200}
+        height={200}
+        alt={"Logo"}
+        whileHover={{ rotate: 180 }}
+        whileTap={{
+          scale: 1.05,
+        }}
+        transition={{
+          type: "spring",
+          stiffness: 180,
+          damping: 20,
+          mass: 1.5,
+        }}
+      />
+    </div>
   );
 }

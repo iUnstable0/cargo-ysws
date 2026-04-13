@@ -68,34 +68,30 @@ export default function Home() {
           transition: "opacity 0.4s ease, visibility 0.4s",
         }}
       >
-        <div className={styles.heroLockup}>
-          <Logo variant="hero" />
+        <Logo />
 
-          <div className={styles.heroDescBand}>
-            <div className={styles.desc}>
-              build a{" "}
-              <span className={styles.robloxStudioWrap}>
-                <RobloxLogo className={styles.robloxLogo} /> Studio
-                <Image
-                  src="/builderman.png"
-                  alt="Builderman"
-                  width={48}
-                  height={48}
-                  className={styles.builderman}
-                />
-              </span>{" "}
-              plugin, get{" "}
-              <a
-                href="https://www.roblox.com/library/4725618216/Moon-Animator-2"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={styles.moonAnimatorLink}
-              >
-                Moon Animator 2
-              </a>{" "}
-              and more!
-            </div>
-          </div>
+        <div className={styles.desc}>
+          build a{" "}
+          <span className={styles.robloxStudioWrap}>
+            <RobloxLogo className={styles.robloxLogo} /> Studio
+            <Image
+              src="/builderman.png"
+              alt="Builderman"
+              width={48}
+              height={48}
+              className={styles.builderman}
+            />
+          </span>{" "}
+          plugin, get{" "}
+          <a
+            href="https://www.roblox.com/library/4725618216/Moon-Animator-2"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.moonAnimatorLink}
+          >
+            Moon Animator 2
+          </a>{" "}
+          and more!
         </div>
       </div>
     </div>
