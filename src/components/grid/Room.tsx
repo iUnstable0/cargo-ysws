@@ -84,9 +84,6 @@ export function Room() {
   const childContentOpacityRef = useRef(0);
   const cellProgressRef = useRef(0);
 
-  // A ref that always reads 1 — used to keep the doorway cell fully sunk
-  // during backward transitions so the camera doesn't pass through its face.
-  const fixedSunkRef = useRef(1);
 
   // ---------------------------------------------------------------------------
   // Determine which rooms to render
@@ -234,22 +231,18 @@ export function Room() {
                   />
                 );
               }
-              // Doorway cell on parent stays sunk during both forward and backward transitions.
-              // During backward, use fixedSunkRef (always 1) so the cell never unsinks
-              // while the camera passes through it.
+              // Doorway cell on parent stays sunk during transitions.
+              // It unsinks gradually during p 0.4→0 of backward, but the camera
+              // is already back at parent homePos by then — no flash.
               const isDoorway = isParent && doorwayCellId === cell.id;
               const isActive = isDoorway && isTransitioning;
-              const isBackwardDoorway =
-                isDoorway && directionRef.current === "out";
               return (
                 <group key={cell.id}>
                   <InteractiveCell
                     cell={cell}
                     isActive={isActive}
                     isDisabled={false}
-                    progressRef={
-                      isBackwardDoorway ? fixedSunkRef : cellProgressRef
-                    }
+                    progressRef={cellProgressRef}
                     cellHoveredRef={cellHoveredRef}
                     onClick={() => handleCellClick(cell)}
                     backWallZ={backWallZ}
