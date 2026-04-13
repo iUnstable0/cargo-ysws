@@ -12,9 +12,15 @@ const titleIconTransition = {
   mass: 1.5,
 };
 
-export default function Logo() {
+type LogoProps = {
+  variant?: "inline" | "hero";
+};
+
+export default function Logo({ variant = "inline" }: LogoProps) {
+  const titleClassName = [styles.titleCtn, styles[variant]].join(" ");
+
   return (
-    <span className={styles.titleCtn}>
+    <span className={titleClassName}>
       <span className={styles.title}>CARG</span>
 
       <span className={styles.titleIconWrap}>

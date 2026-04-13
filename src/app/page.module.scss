@@ -81,8 +81,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
-  gap: clamp(14px, 2.6vh, 28px);
 
   padding: 24px;
   font-size: max(60px, 10vw);
@@ -101,6 +99,21 @@
   z-index: 2;
 
   pointer-events: none;
+
+  .heroLockup {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    row-gap: clamp(32px, 5vw, 64px);
+    width: min(100%, 1600px);
+  }
+
+  .heroDescBand {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    padding-top: clamp(38px, 5vw, 72px);
+  }
 
   .desc {
     font-size: clamp(10px, 1.8vw, 20px);
