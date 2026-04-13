@@ -1,6 +1,7 @@
 import type { PageDef, NavCell } from "../types";
 import { homePage } from "./home";
 import { enterPage } from "./home/enter";
+import { prizesPage } from "./home/prizes";
 
 // ---------------------------------------------------------------------------
 // Flat registry — O(1) lookup by page ID
@@ -8,6 +9,7 @@ import { enterPage } from "./home/enter";
 
 const ALL_PAGES: Record<string, PageDef> = {
   home: homePage,
+  prizes: prizesPage,
   enter: enterPage,
 };
 
